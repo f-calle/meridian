@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RelationLabel, RelationPicker } from "@/components/relation-field";
 import { LineItemsEditor, LineItemsView } from "@/components/line-items-editor";
+import { StatusBadge, isStatusValue } from "@/components/status-badge";
 import type { EntityField } from "@/lib/entity-ui";
 import { formatFieldValue } from "@/lib/entity-ui";
 
@@ -31,6 +32,8 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
               <p className="text-sm break-words whitespace-pre-wrap">
                 {field.type === "relation" && field.relation ? (
                   <RelationLabel entity={field.relation} id={formData[field.name] as string | null} />
+                ) : field.type === "select" && isStatusValue(formData[field.name]) ? (
+                  <StatusBadge value={String(formData[field.name])} />
                 ) : (
                   formatFieldValue(formData[field.name], field.type)
                 )}

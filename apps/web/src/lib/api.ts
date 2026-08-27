@@ -168,6 +168,25 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
+  aggregate: (
+    entity: string,
+    params: { groupBy?: string; metric?: "count" | "sum" | "avg"; metricField?: string; filters?: Record<string, string> },
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.groupBy) qs.set("groupBy", params.groupBy);
+    if (params.metric) qs.set("metric", params.metric);
+    if (params.metricField) qs.set("metricField", params.metricField);
+    for (const [k, v] of Object.entries(params.filters ?? {})) qs.set(`filter.${k}`, v);
+    return apiFetch<{ rows: { group: string | null; count: number; value: number | null }[] }>(
+      `/api/${entity}/aggregate?${qs}`,
+    );
+  },
+
+  convertQuote: (id: string) =>
+    apiFetch<{ invoice: Record<string, unknown>; created: boolean }>(`/api/quote/${id}/convert`, {
+      method: "POST",
+    }),
+
   csvMap: (csv: string, entity?: string) =>
     apiFetch<{
       entity: string;

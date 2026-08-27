@@ -122,7 +122,10 @@ export const ActivityEntity = defineEntity({
     }),
     subject: field.string({ required: true, label: "Subject" }),
     notes: field.text({ label: "Notes" }),
-    relatedEntity: field.select(["deal", "contact", "company", "project"], { label: "Related To" }),
+    relatedEntity: field.select(
+      ["deal", "contact", "company", "project", "task", "quote", "invoice"],
+      { label: "Related To" },
+    ),
     relatedId: field.string({ label: "Related Record ID" }),
     dueDate: field.datetime({ label: "Due Date" }),
     completed: field.boolean({ label: "Completed", default: false }),

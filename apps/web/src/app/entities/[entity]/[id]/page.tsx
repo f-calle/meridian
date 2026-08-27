@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileDown, Loader2, Pencil, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, FileDown, FileOutput, Loader2, Pencil, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -179,6 +179,27 @@ export default function EntityDetailPage() {
         <div className="flex flex-wrap gap-2">
           {!editing ? (
             <>
+              {entity === "quote" && (
+                <Button
+                  variant="outline"
+                  className="touch-manipulation"
+                  onClick={async () => {
+                    try {
+                      const { invoice, created } = await api.convertQuote(id);
+                      toast({
+                        title: created ? "Invoice created" : "Invoice already exists",
+                        description: `${invoice.number} — opening it now.`,
+                      });
+                      router.push(`/entities/invoice/${invoice.id}`);
+                    } catch (err) {
+                      toast({ title: "Convert failed", description: (err as Error).message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  <FileOutput className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Convert to invoice
+                </Button>
+              )}
               {(entity === "quote" || entity === "invoice") && (
                 <Button
                   variant="outline"

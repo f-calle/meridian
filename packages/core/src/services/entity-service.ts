@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type { ActorContext, EntityDefinition, ListQuery, ListResult } from "../types.js";
+import type { ActorContext, EntityDefinition, FieldType, ListQuery, ListResult } from "../types.js";
 import { entityRegistry } from "../entity/registry.js";
 import { validateEntityData } from "../entity/validation.js";
 import { checkPermission } from "../acl/permissions.js";
@@ -32,7 +32,10 @@ export class EntityService {
     }
 
     const id = uuidv4();
-    const dbData = mapFieldsToDb(entity, validation.data);
+    // externalId/sourceSystem aren't declared entity fields, so zod strips
+    // them from validation.data — carry them across from the raw input or
+    // idempotent re-imports would silently duplicate.
+    const dbData = mapFieldsToDb(entity, withExternalIdentity(validation.data, data));
     const columns = ["id", "tenant_id", ...Object.keys(dbData).map(toSnakeCase)];
     const values = [id, actor.tenantId, ...Object.values(dbData)];
     const placeholders = values.map((_, i) => `$${i + 1}`).join(", ");
@@ -83,7 +86,9 @@ export class EntityService {
       throw new Error(`Validation failed: ${validation.errors.join(", ")}`);
     }
 
-    const dbData = mapFieldsToDb(entity, validation.data, { applyDefaults: false });
+    const dbData = mapFieldsToDb(entity, withExternalIdentity(validation.data, data), {
+      applyDefaults: false,
+    });
     const entries = Object.entries(dbData);
     if (entries.length > 0) {
       const setClauses = entries.map(([k], i) => `${toSnakeCase(k)} = $${i + 3}`).join(", ");
@@ -305,6 +310,17 @@ export class EntityService {
 
 const SYSTEM_COLUMNS = new Set(["id", "created_at", "updated_at", "external_id", "source_system"]);
 
+/** Re-attach external identity fields that entity validation strips out. */
+function withExternalIdentity(
+  validated: Record<string, unknown>,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...validated };
+  if (raw.externalId !== undefined) result.externalId = raw.externalId;
+  if (raw.sourceSystem !== undefined) result.sourceSystem = raw.sourceSystem;
+  return result;
+}
+
 /** Resolve a user-supplied field name to a safe column name, or null if unknown. */
 function resolveColumn(entity: EntityDefinition, fieldName: string): string | null {
   if (entity.fields[fieldName]) return toSnakeCase(fieldName);
@@ -346,10 +362,24 @@ function mapDbToFields(entity: EntityDefinition, row: Record<string, unknown>): 
       camelKey === "sourceSystem" ||
       entity.fields[camelKey] !== undefined
     ) {
-      result[camelKey] = value;
+      result[camelKey] = coerceFromDb(entity.fields[camelKey]?.type, value);
     }
   }
   return result;
+}
+
+/**
+ * Postgres returns NUMERIC as a string (to preserve precision), so currency
+ * and number fields would otherwise surface as "84000.00" — breaking
+ * arithmetic and every currency formatter downstream. Coerce by field type.
+ */
+export function coerceFromDb(type: FieldType | undefined, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if ((type === "currency" || type === "number") && typeof value === "string") {
+    const n = Number(value);
+    return Number.isNaN(n) ? value : n;
+  }
+  return value;
 }
 
 function computeDiff(

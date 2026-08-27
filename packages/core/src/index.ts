@@ -5,7 +5,7 @@ export { validateEntityData, buildEntityZodSchema } from "./entity/validation.js
 export { checkPermission, getEffectivePermissions, PermissionError } from "./acl/permissions.js";
 export { eventBus, hookRegistry } from "./events/event-bus.js";
 export { pluginManager, PluginManager } from "./plugins/plugin-manager.js";
-export { entityService, EntityService } from "./services/entity-service.js";
+export { entityService, EntityService, coerceFromDb } from "./services/entity-service.js";
 export { hashPassword, verifyPassword, isLegacyHash } from "./auth/password.js";
 export { signToken, verifyToken } from "./auth/token.js";
 export type { TokenPayload } from "./auth/token.js";

@@ -364,6 +364,42 @@ app.post("/api/ai/automation/draft", async (c) => {
   }
 });
 
+// Aggregations for reports and dashboards
+app.get("/api/:entity/aggregate", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  const entityName = c.req.param("entity")!;
+  if (!entityRegistry.get(entityName)) return c.json({ error: "Entity not found" }, 404);
+
+  const metricParam = c.req.query("metric");
+  const metric =
+    metricParam === "sum" || metricParam === "avg" || metricParam === "count" ? metricParam : "count";
+
+  const filters: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(c.req.query())) {
+    if (key.startsWith("filter.")) filters[key.slice("filter.".length)] = value;
+  }
+
+  try {
+    const rows = await entityService.aggregate(
+      entityName,
+      {
+        groupBy: c.req.query("groupBy") ?? undefined,
+        metric,
+        metricField: c.req.query("metricField") ?? undefined,
+        filters: Object.keys(filters).length > 0 ? filters : undefined,
+      },
+      actor,
+    );
+    return c.json({ rows });
+  } catch (err) {
+    const message = (err as Error).message;
+    const status = message.includes("Permission") ? 403 : 400;
+    return c.json({ error: message }, status);
+  }
+});
+
 // Daily briefing: pipeline health, overdue work, open tasks
 app.get("/api/ai/briefing", async (c) => {
   const actor = getActor(c);
@@ -374,6 +410,57 @@ app.get("/api/ai/briefing", async (c) => {
     return c.json(briefing);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// Convert an accepted quote into a draft invoice
+app.post("/api/quote/:id/convert", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  try {
+    const quote = await entityService.read("quote", c.req.param("id")!, actor);
+
+    // One invoice per quote: reuse the existing one rather than duplicating
+    const existing = await entityService.list(
+      "invoice",
+      { tenantId: actor.tenantId, filters: { externalId: `quote:${quote.id}` }, pageSize: 1 },
+      actor,
+    );
+    if (existing.data[0]) {
+      return c.json({ invoice: existing.data[0], created: false });
+    }
+
+    const issued = new Date();
+    const due = new Date(issued.getTime() + 30 * 86_400_000);
+    const invoice = await entityService.create(
+      "invoice",
+      {
+        number: `INV-${String(quote.number ?? "").replace(/^Q-?/i, "") || Date.now()}`,
+        status: "draft",
+        companyId: quote.companyId ?? undefined,
+        contactId: quote.contactId ?? undefined,
+        issueDate: issued.toISOString().slice(0, 10),
+        dueDate: due.toISOString().slice(0, 10),
+        lines: quote.lines ?? [],
+        subtotal: quote.subtotal ?? 0,
+        tax: quote.tax ?? 0,
+        total: quote.total ?? 0,
+        notes: quote.notes ?? undefined,
+        externalId: `quote:${quote.id}`,
+        sourceSystem: "meridian",
+      },
+      actor,
+    );
+    return c.json({ invoice, created: true }, 201);
+  } catch (err) {
+    const message = (err as Error).message;
+    const status = message.includes("Permission")
+      ? 403
+      : message.includes("not found")
+        ? 404
+        : 400;
+    return c.json({ error: message }, status);
   }
 });
 

@@ -7,7 +7,16 @@
     --radius: 0.5rem;
   }
 
+  :root {
+    /* Data-viz tokens (validated palette; single series hue + fixed status) */
+    --viz-series-1: #2a78d6;
+    --viz-good: #0ca30c;
+    --viz-warning: #fab219;
+    --viz-critical: #d03b3b;
+  }
+
   .dark {
+    --viz-series-1: #3987e5;
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
     --card: 222 47% 8%;

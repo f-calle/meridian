@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Trash2, Eye, X } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Eye, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/table";
 import { EntityFormFields } from "@/components/entity-form-fields";
 import { RelationLabel } from "@/components/relation-field";
+import { StatusBadge, isStatusValue } from "@/components/status-badge";
+import { toCsv, downloadCsv } from "@/lib/csv-export";
 import { AiAutomationDialog } from "@/components/ai-automation-dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -266,6 +268,21 @@ export default function EntityListPage() {
               name="entity-search"
             />
           </div>
+          <Button
+            variant="outline"
+            className="touch-manipulation"
+            onClick={async () => {
+              try {
+                const all = await api.list(entity, { search: urlSearch || undefined, pageSize: 1000 });
+                downloadCsv(`${entity}-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(all.data, schema?.fields ?? []));
+                toast({ title: `Exported ${all.data.length} ${schema?.pluralLabel?.toLowerCase() ?? "records"}` });
+              } catch (err) {
+                toast({ title: "Export failed", description: (err as Error).message, variant: "destructive" });
+              }
+            }}
+          >
+            <Download className="mr-1 h-4 w-4" aria-hidden="true" /> Export
+          </Button>
           {entity === "automation" && <AiAutomationDialog onCreated={load} />}
           <Button onClick={() => setShowForm(true)} className="touch-manipulation">
             <Plus className="mr-1 h-4 w-4" aria-hidden="true" /> New
@@ -388,6 +405,8 @@ export default function EntityListPage() {
                       <TableCell key={f.name} className="max-w-[200px] truncate">
                         {f.type === "relation" && f.relation ? (
                           <RelationLabel entity={f.relation} id={record[f.name] as string | null} />
+                        ) : f.type === "select" && isStatusValue(record[f.name]) ? (
+                          <StatusBadge value={String(record[f.name])} />
                         ) : (
                           formatFieldValue(record[f.name], f.type)
                         )}
