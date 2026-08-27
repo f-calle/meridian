@@ -1,0 +1,25 @@
+{
+  "name": "meridian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-native ERP platform — CRM, projects, and more",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "set -a && . ./.env && set +a && tsx scripts/migrate.ts",
+    "db:seed": "set -a && . ./.env && set +a && tsx scripts/seed.ts"
+  },
+  "devDependencies": {
+    "@meridian/core": "workspace:*",
+    "@meridian/entities": "workspace:*",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22"
+  }
+}
