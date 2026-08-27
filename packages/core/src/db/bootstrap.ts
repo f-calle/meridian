@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getDb } from "./client.js";
 import { ensureEntityTables } from "./entity-store.js";
@@ -24,9 +25,39 @@ export async function runMigrations(): Promise<void> {
 }
 
 /**
+ * The password the seeded admin gets.
+ *
+ * `demo1234` is fine on a laptop and indefensible on a public URL, and
+ * AUTO_SEED is exactly the setting someone turns on for a first deploy. So in
+ * production an unset DEMO_ADMIN_PASSWORD produces a random one, printed once
+ * — an operator who has to read the deploy log to get in is a much better
+ * failure mode than an instance anyone can sign into.
+ */
+export function demoAdminPassword(): string {
+  const configured = process.env.DEMO_ADMIN_PASSWORD;
+  if (configured) return configured;
+  if (process.env.NODE_ENV !== "production") return "demo1234";
+
+  const generated = randomBytes(18).toString("base64url");
+  console.log(
+    [
+      "",
+      "  ┌─────────────────────────────────────────────────────────────────┐",
+      "  │  Seeded the demo admin with a generated password.               │",
+      "  │  This is printed once. Save it, then change it in Settings.     │",
+      "  └─────────────────────────────────────────────────────────────────┘",
+      `  admin@demo.com  ${generated}`,
+      "",
+      "  Set DEMO_ADMIN_PASSWORD to choose it yourself next time.",
+      "",
+    ].join("\n"),
+  );
+  return generated;
+}
+
+/**
  * Seed the demo tenant, admin user, and example automation. Idempotent —
- * skips entirely if the demo tenant exists. Password defaults to demo1234;
- * override with DEMO_ADMIN_PASSWORD.
+ * skips entirely if the demo tenant exists.
  */
 export async function seedDemoTenant(): Promise<boolean> {
   const db = getDb();
@@ -39,7 +70,7 @@ export async function seedDemoTenant(): Promise<boolean> {
   `);
   const tenantId = (tenantResult[0] as { id: string }).id;
 
-  const passwordHash = hashPassword(process.env.DEMO_ADMIN_PASSWORD ?? "demo1234");
+  const passwordHash = hashPassword(demoAdminPassword());
   await db.execute(sql`
     INSERT INTO users (tenant_id, email, name, role, password_hash)
     VALUES (${tenantId}, 'admin@demo.com', 'Demo Admin', 'admin', ${passwordHash})

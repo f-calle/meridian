@@ -42,7 +42,9 @@ pnpm db:seed
 pnpm dev
 ```
 
-Open http://localhost:3000 — login with `admin@demo.com` / `demo1234`
+Open http://localhost:3000 — login with `admin@demo.com` / `demo1234`.
+That default is local-only: a production boot with `AUTO_SEED` generates a random
+password instead and prints it once, unless `DEMO_ADMIN_PASSWORD` is set.
 
 ## Quickstart (Docker Compose — full stack)
 

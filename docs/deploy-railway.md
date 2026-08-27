@@ -27,6 +27,7 @@ service variable `RAILWAY_DOCKERFILE_PATH` (e.g. `apps/api/Dockerfile`).
 | `AUTH_SECRET` | api | long random string (`openssl rand -hex 32`) — required |
 | `AUTO_MIGRATE` | api | `true` — applies pending migrations on boot (see [schema-migrations.md](schema-migrations.md)) |
 | `AUTO_SEED` | api | `true` for the demo tenant; remove for a blank instance |
+| `DEMO_ADMIN_PASSWORD` | api | password for the seeded admin — set it, or read the generated one from the first boot log |
 | `NEXT_PUBLIC_API_URL` | web | the api service's public URL (build-time) |
 | `NEXT_PUBLIC_APP_URL` | web, api | the web service's public URL (build-time on web; CORS origin on api) |
 | `ANTHROPIC_API_KEY` | api | optional — enables AI chat + LLM briefings |
@@ -66,7 +67,8 @@ and redeploy web so the `NEXT_PUBLIC_*` values bake in.
 ## Verify
 
 - `https://<api-domain>/health` → `{"status":"ok"}`
-- `https://<web-domain>` → login with `admin@demo.com` / `demo1234` (if `AUTO_SEED=true`)
+- `https://<web-domain>` → login as `admin@demo.com` with `DEMO_ADMIN_PASSWORD` (if `AUTO_SEED=true`).
+  Didn't set one? The first boot log prints the generated password once.
 
 ## Security Notes
 

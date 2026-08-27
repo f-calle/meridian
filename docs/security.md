@@ -106,9 +106,11 @@ Odoo credentials.
 
 ## Operational notes
 
-- The demo tenant (`admin@demo.com`) is seeded with a well-known password unless
-  `DEMO_ADMIN_PASSWORD` is set. Set it, or don't enable `AUTO_SEED`, on any
-  deployment reachable from the internet.
+- The demo tenant (`admin@demo.com`) takes its password from
+  `DEMO_ADMIN_PASSWORD`. Unset, a local instance gets `demo1234` and a
+  production one gets a random password printed once in the boot log —
+  `AUTO_SEED` is exactly the setting someone turns on for a first public deploy,
+  so it must not produce an instance anyone can sign into.
 - Secrets belong in the platform's environment configuration. A key that has
   been pasted into a chat, a terminal, or a commit should be rotated.
 - `MERIDIAN_SESSION_CACHE_MS` trades revocation latency against per-request
