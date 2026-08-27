@@ -87,7 +87,10 @@ export interface HookHandler {
 export interface HookContext {
   entityName: string;
   recordId: string;
+  /** Full record state (for updates: existing record merged with changes) */
   data: Record<string, unknown>;
+  /** Only the fields that changed — set on update events */
+  changes?: Record<string, unknown>;
   actor: ActorContext;
   tenantId: string;
 }

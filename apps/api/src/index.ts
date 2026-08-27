@@ -1,8 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { createHash } from "node:crypto";
-import { sql, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   registerEntities,
   entityRegistry,
@@ -10,15 +9,22 @@ import {
   getDb,
   getEntityUiMeta,
   pluginManager,
+  hashPassword,
+  verifyPassword,
+  isLegacyHash,
+  signToken,
+  verifyToken,
+  startAutomationEngine,
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
-import { OdooAdapter } from "@meridian/migration";
-import { AgentOrchestrator } from "@meridian/ai";
+import { OdooAdapter, importCsv, CSV_PRESETS } from "@meridian/migration";
+import { AgentOrchestrator, generateBriefing } from "@meridian/ai";
 import { hooks as examplePluginHooks } from "meridian-example-plugin";
 import type { ActorContext } from "@meridian/core";
 
 registerEntities(allEntities);
+startAutomationEngine();
 
 pluginManager.install(
   { name: "example-plugin", version: "1.0.0", hooks: { "deal.onCreate": "./hooks/log-deal.ts" } },
@@ -42,31 +48,46 @@ app.get("/health", (c) => c.json({ status: "ok", service: "meridian-api" }));
 app.post("/api/auth/login", async (c) => {
   const { email, password } = await c.req.json<{ email: string; password: string }>();
   const db = getDb();
-  const passwordHash = createHash("sha256").update(password).digest("hex");
 
   const result = await db.execute(sql`
-    SELECT u.id, u.email, u.name, u.role, u.tenant_id, t.name as tenant_name, t.slug as tenant_slug
+    SELECT u.id, u.email, u.name, u.role, u.tenant_id, u.password_hash, t.name as tenant_name, t.slug as tenant_slug
     FROM users u
     JOIN tenants t ON t.id = u.tenant_id
-    WHERE u.email = ${email} AND u.password_hash = ${passwordHash}
+    WHERE u.email = ${email}
     LIMIT 1
   `);
 
-  const user = result[0] as Record<string, string> | undefined;
-  if (!user) {
+  const user = result[0] as
+    | {
+        id: string;
+        email: string;
+        name: string;
+        role: string;
+        tenant_id: string;
+        password_hash: string;
+        tenant_name: string;
+        tenant_slug: string;
+      }
+    | undefined;
+  if (!user || !verifyPassword(password, user.password_hash)) {
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
-  const token = Buffer.from(
-    JSON.stringify({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      tenantId: user.tenant_id,
-      tenantName: user.tenant_name,
-    }),
-  ).toString("base64");
+  // Transparently upgrade legacy unsalted hashes on successful login
+  if (isLegacyHash(user.password_hash)) {
+    await db.execute(sql`
+      UPDATE users SET password_hash = ${hashPassword(password)} WHERE id = ${user.id}
+    `);
+  }
+
+  const token = signToken({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    tenantId: user.tenant_id,
+    tenantName: user.tenant_name,
+  });
 
   return c.json({
     token,
@@ -138,9 +159,26 @@ for (const action of crudActions) {
           const page = Number(c.req.query("page") ?? 1);
           const pageSize = Number(c.req.query("pageSize") ?? 20);
           const search = c.req.query("search") ?? undefined;
+          const sortBy = c.req.query("sortBy") ?? undefined;
+          const sortOrder = c.req.query("sortOrder") === "asc" ? "asc" as const : c.req.query("sortOrder") === "desc" ? "desc" as const : undefined;
+
+          // filter.<field>=value query params become exact-match filters
+          const filters: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(c.req.query())) {
+            if (key.startsWith("filter.")) filters[key.slice("filter.".length)] = value;
+          }
+
           const result = await entityService.list(
             entityName,
-            { tenantId: actor.tenantId, page, pageSize, search },
+            {
+              tenantId: actor.tenantId,
+              page,
+              pageSize,
+              search,
+              sortBy,
+              sortOrder,
+              filters: Object.keys(filters).length > 0 ? filters : undefined,
+            },
             actor,
           );
           return c.json(result);
@@ -200,6 +238,70 @@ app.post("/api/ai/chat", async (c) => {
   return c.json(result);
 });
 
+// Daily briefing: pipeline health, overdue work, open tasks
+app.get("/api/ai/briefing", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  try {
+    const briefing = await generateBriefing(actor);
+    return c.json(briefing);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// CSV migration (ERPNext, Dolibarr, generic exports)
+app.get("/api/migration/csv/presets", (c) => {
+  return c.json({ presets: CSV_PRESETS });
+});
+
+app.post("/api/migration/csv/import", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  const body = await c.req.json<{
+    csv: string;
+    preset?: string;
+    entity?: string;
+    mapping?: { column: string; field: string }[];
+    externalIdColumn?: string;
+    sourceSystem?: string;
+    dryRun?: boolean;
+  }>();
+
+  try {
+    let options;
+    if (body.preset) {
+      const preset = CSV_PRESETS.find((p) => p.name === body.preset);
+      if (!preset) return c.json({ error: `Unknown preset: ${body.preset}` }, 400);
+      options = {
+        entity: preset.entity,
+        mapping: preset.mapping,
+        externalIdColumn: preset.externalIdColumn,
+        sourceSystem: preset.sourceSystem,
+        dryRun: body.dryRun,
+      };
+    } else {
+      if (!body.entity || !body.mapping?.length) {
+        return c.json({ error: "Provide either a preset or entity + mapping" }, 400);
+      }
+      options = {
+        entity: body.entity,
+        mapping: body.mapping,
+        externalIdColumn: body.externalIdColumn,
+        sourceSystem: body.sourceSystem,
+        dryRun: body.dryRun,
+      };
+    }
+
+    const result = await importCsv(body.csv, options, actor);
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
 // Migration
 app.post("/api/migration/odoo/connect", async (c) => {
   const actor = getActor(c);
@@ -253,17 +355,15 @@ function getActor(c: { req: { header: (name: string) => string | undefined } }):
   const auth = c.req.header("Authorization");
   if (!auth?.startsWith("Bearer ")) return null;
 
-  try {
-    const payload = JSON.parse(Buffer.from(auth.slice(7), "base64").toString());
-    return {
-      id: payload.id,
-      type: "user",
-      tenantId: payload.tenantId,
-      role: payload.role,
-    };
-  } catch {
-    return null;
-  }
+  const payload = verifyToken(auth.slice(7));
+  if (!payload) return null;
+
+  return {
+    id: payload.id,
+    type: "user",
+    tenantId: payload.tenantId,
+    role: payload.role,
+  };
 }
 
 const port = Number(process.env.PORT ?? 3001);

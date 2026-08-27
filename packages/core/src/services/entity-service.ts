@@ -83,7 +83,7 @@ export class EntityService {
       throw new Error(`Validation failed: ${validation.errors.join(", ")}`);
     }
 
-    const dbData = mapFieldsToDb(entity, validation.data);
+    const dbData = mapFieldsToDb(entity, validation.data, { applyDefaults: false });
     const entries = Object.entries(dbData);
     if (entries.length > 0) {
       const setClauses = entries.map(([k], i) => `${toSnakeCase(k)} = $${i + 3}`).join(", ");
@@ -95,15 +95,17 @@ export class EntityService {
 
     const diff = computeDiff(existing, validation.data);
     await this.writeAudit(actor, entityName, id, "update", diff);
+    const merged = { ...existing, ...validation.data };
     await hookRegistry.runLifecycle(entityName, "onUpdate", {
       entityName,
       recordId: id,
-      data: validation.data,
+      data: merged,
+      changes: validation.data,
       actor,
       tenantId: actor.tenantId,
     });
 
-    return { ...existing, ...validation.data };
+    return merged;
   }
 
   async delete(entityName: string, id: string, actor: ActorContext): Promise<void> {
@@ -151,7 +153,22 @@ export class EntityService {
       }
     }
 
-    const sortCol = query.sortBy ? toSnakeCase(query.sortBy) : "created_at";
+    if (query.filters) {
+      for (const [fieldName, value] of Object.entries(query.filters)) {
+        if (value === undefined) continue;
+        const col = resolveColumn(entity, fieldName);
+        if (!col) throw new Error(`Unknown filter field: ${fieldName}`);
+        if (value === null) {
+          whereClause += ` AND ${col} IS NULL`;
+        } else {
+          whereClause += ` AND ${col} = $${params.length + 1}`;
+          params.push(value);
+        }
+      }
+    }
+
+    const sortCol = query.sortBy ? resolveColumn(entity, query.sortBy) : "created_at";
+    if (!sortCol) throw new Error(`Unknown sort field: ${query.sortBy}`);
     const sortOrder = query.sortOrder === "asc" ? "ASC" : "DESC";
 
     const [rows, countResult] = await Promise.all([
@@ -171,6 +188,72 @@ export class EntityService {
       page,
       pageSize,
     };
+  }
+
+  /**
+   * Aggregate records: count (and optionally sum/avg a numeric field),
+   * grouped by an optional field. All field names are validated against
+   * the entity definition before touching SQL.
+   */
+  async aggregate(
+    entityName: string,
+    options: {
+      groupBy?: string;
+      metric?: "count" | "sum" | "avg";
+      metricField?: string;
+      filters?: Record<string, unknown>;
+    },
+    actor: ActorContext,
+  ): Promise<{ group: string | null; count: number; value: number | null }[]> {
+    const entity = this.getEntity(entityName);
+    checkPermission(entity, actor, "read");
+
+    const metric = options.metric ?? "count";
+    let metricExpr = "NULL";
+    if (metric !== "count") {
+      if (!options.metricField) throw new Error(`Metric "${metric}" requires metricField`);
+      const def = entity.fields[options.metricField];
+      if (!def || (def.type !== "number" && def.type !== "currency")) {
+        throw new Error(`Field "${options.metricField}" is not numeric`);
+      }
+      metricExpr = `${metric.toUpperCase()}(${toSnakeCase(options.metricField)})::float`;
+    }
+
+    let whereClause = "tenant_id = $1";
+    const params: unknown[] = [actor.tenantId];
+    if (options.filters) {
+      for (const [fieldName, value] of Object.entries(options.filters)) {
+        if (value === undefined) continue;
+        const col = resolveColumn(entity, fieldName);
+        if (!col) throw new Error(`Unknown filter field: ${fieldName}`);
+        if (value === null) {
+          whereClause += ` AND ${col} IS NULL`;
+        } else {
+          whereClause += ` AND ${col} = $${params.length + 1}`;
+          params.push(value);
+        }
+      }
+    }
+
+    let groupCol: string | null = null;
+    if (options.groupBy) {
+      groupCol = resolveColumn(entity, options.groupBy);
+      if (!groupCol) throw new Error(`Unknown groupBy field: ${options.groupBy}`);
+    }
+
+    const selectGroup = groupCol ? `${groupCol}::text as grp` : "NULL as grp";
+    const groupClause = groupCol ? `GROUP BY ${groupCol} ORDER BY count DESC` : "";
+
+    const rows = await getSql().unsafe(
+      `SELECT ${selectGroup}, COUNT(*)::int as count, ${metricExpr} as value FROM ${entityName} WHERE ${whereClause} ${groupClause}`,
+      params as (string | number)[],
+    );
+
+    return (rows as unknown as { grp: string | null; count: number; value: number | null }[]).map((r) => ({
+      group: r.grp,
+      count: r.count,
+      value: r.value,
+    }));
   }
 
   async upsertByExternalId(
@@ -220,11 +303,28 @@ export class EntityService {
   }
 }
 
-function mapFieldsToDb(entity: EntityDefinition, data: Record<string, unknown>): Record<string, unknown> {
+const SYSTEM_COLUMNS = new Set(["id", "created_at", "updated_at", "external_id", "source_system"]);
+
+/** Resolve a user-supplied field name to a safe column name, or null if unknown. */
+function resolveColumn(entity: EntityDefinition, fieldName: string): string | null {
+  if (entity.fields[fieldName]) return toSnakeCase(fieldName);
+  const snake = toSnakeCase(fieldName);
+  if (SYSTEM_COLUMNS.has(snake)) return snake;
+  return null;
+}
+
+function mapFieldsToDb(
+  entity: EntityDefinition,
+  data: Record<string, unknown>,
+  options: { applyDefaults?: boolean } = {},
+): Record<string, unknown> {
+  const applyDefaults = options.applyDefaults ?? true;
   const result: Record<string, unknown> = {};
   for (const [name, def] of Object.entries(entity.fields)) {
     if (data[name] !== undefined) result[name] = data[name];
-    else if (def.default !== undefined) result[name] = def.default;
+    // Defaults only on create — applying them on update would reset every
+    // omitted defaulted field.
+    else if (applyDefaults && def.default !== undefined) result[name] = def.default;
   }
   if (data.externalId !== undefined) result.externalId = data.externalId;
   if (data.sourceSystem !== undefined) result.sourceSystem = data.sourceSystem;

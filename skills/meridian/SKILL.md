@@ -61,3 +61,22 @@ Mapped models: res.partner → contact/company, crm.lead → deal, project.proje
 ## Plugin Development
 
 See `plugins/example-plugin/` for the template. Plugins register hooks via manifest.json.
+
+## Automations
+
+- Rules are records in the `automation` entity: `{ entity, event, conditions, actions, enabled }`
+- Engine lives in `packages/core/src/automations/engine.ts`; started with `startAutomationEngine()` (api + worker)
+- Actions run as a system actor; events from system actors are ignored, so automations never cascade
+- On `updated` events a rule fires only when a condition field actually changed
+- Hook contexts carry the full merged record in `data` and changed fields in `changes`
+
+## Auth
+
+- Tokens: HMAC-SHA256 signed via `signToken`/`verifyToken` (`packages/core/src/auth/token.ts`), secret from `AUTH_SECRET`
+- Passwords: scrypt via `hashPassword`/`verifyPassword`; legacy sha256 hashes verify and are upgraded on login
+
+## Gotchas
+
+- Never re-apply field defaults on update paths (validation and `mapFieldsToDb` both guard this)
+- All user-supplied sort/filter/groupBy field names must go through `resolveColumn` before touching SQL
+- Tests are colocated `*.test.ts` files run by vitest (`pnpm test`); they must not require a database

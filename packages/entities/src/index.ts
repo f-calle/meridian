@@ -1,7 +1,9 @@
 import { crmEntities } from "./crm/index.js";
 import { projectEntities } from "./projects/index.js";
+import { systemEntities } from "./system/index.js";
 
 export * from "./crm/index.js";
 export * from "./projects/index.js";
+export * from "./system/index.js";
 
-export const allEntities = [...crmEntities, ...projectEntities];
+export const allEntities = [...crmEntities, ...projectEntities, ...systemEntities];

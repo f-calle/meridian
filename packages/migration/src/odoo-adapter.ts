@@ -30,8 +30,19 @@ export class OdooAdapter {
   }
 
   async fetchModelCount(model: string): Promise<number> {
-    const records = await this.searchRead(model, [], ["id"], 0);
-    return records.length;
+    if (!this.uid) await this.connect();
+
+    const object = xmlrpc.createSecureClient({ url: `${this.config.url}/xmlrpc/2/object` });
+    return new Promise((resolve, reject) => {
+      object.methodCall(
+        "execute_kw",
+        [this.config.database, this.uid, this.config.password, model, "search_count", [[]]],
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(Number(result));
+        },
+      );
+    });
   }
 
   async searchRead(
@@ -105,6 +116,7 @@ export class OdooAdapter {
       for (const record of records) {
         try {
           const data = this.mapRecord(record, mapping);
+          await this.resolveRelations(data, mapping, actor);
           const externalId = `odoo_${record.id}`;
 
           if (dryRun) {
@@ -158,6 +170,30 @@ export class OdooAdapter {
     report.status = "completed";
     report.completedAt = new Date();
     return report;
+  }
+
+  /** Replace imported Odoo IDs on relation fields with the UUID of the
+   * already-imported Meridian record (matched by external_id). */
+  private async resolveRelations(
+    data: Record<string, unknown>,
+    mapping: ModelMapping,
+    actor: ActorContext,
+  ): Promise<void> {
+    for (const fm of mapping.fields) {
+      if (!fm.relation || data[fm.meridianField] === undefined) continue;
+      const result = await entityService.list(
+        fm.relation,
+        {
+          tenantId: actor.tenantId,
+          filters: { externalId: `odoo_${data[fm.meridianField]}`, sourceSystem: "odoo" },
+          pageSize: 1,
+        },
+        actor,
+      );
+      const match = result.data[0];
+      if (match) data[fm.meridianField] = match.id;
+      else delete data[fm.meridianField];
+    }
   }
 
   private mapRecord(

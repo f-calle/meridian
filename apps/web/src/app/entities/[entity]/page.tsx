@@ -43,7 +43,21 @@ export default function EntityListPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await api.create(entity, formData);
+      const payload: Record<string, unknown> = { ...formData };
+      for (const field of schema?.fields ?? []) {
+        const value = payload[field.name];
+        if (field.type === "json" && typeof value === "string" && value.trim() !== "") {
+          try {
+            payload[field.name] = JSON.parse(value);
+          } catch {
+            alert(`${field.label} must be valid JSON`);
+            return;
+          }
+        } else if (field.type === "json" && (value === "" || value === undefined)) {
+          delete payload[field.name];
+        }
+      }
+      await api.create(entity, payload);
       setShowForm(false);
       setFormData({});
       load();
@@ -94,10 +108,18 @@ export default function EntityListPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
-              {schema.fields.filter((f) => f.type !== "json").map((field) => (
-                <div key={field.name} className={field.type === "text" ? "col-span-2" : ""}>
+              {schema.fields.map((field) => (
+                <div key={field.name} className={field.type === "text" || field.type === "json" ? "col-span-2" : ""}>
                   <Label htmlFor={field.name}>{field.label}</Label>
-                  {field.type === "select" ? (
+                  {field.type === "json" ? (
+                    <textarea
+                      id={field.name}
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
+                      placeholder='JSON, e.g. [{"field": "stage", "op": "eq", "value": "won"}]'
+                      value={(formData[field.name] as string) ?? ""}
+                      onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+                    />
+                  ) : field.type === "select" ? (
                     <select
                       id={field.name}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"

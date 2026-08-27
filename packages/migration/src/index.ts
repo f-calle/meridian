@@ -9,6 +9,9 @@ export interface FieldMapping {
   odooField: string;
   meridianField: string;
   transform?: (value: unknown) => unknown;
+  /** Target Meridian entity — the imported Odoo ID is resolved to the
+   * matching record's UUID via its external_id after that entity imports. */
+  relation?: string;
 }
 
 export interface ModelMapping {
@@ -84,7 +87,7 @@ export const ODOO_MODEL_MAPPINGS: ModelMapping[] = [
     fields: [
       { odooField: "name", meridianField: "title" },
       { odooField: "description", meridianField: "description" },
-      { odooField: "project_id", meridianField: "projectId", transform: (v) => (Array.isArray(v) ? v[0] : v) },
+      { odooField: "project_id", meridianField: "projectId", transform: (v) => (Array.isArray(v) ? v[0] : v), relation: "project" },
     ],
   },
 ];
@@ -106,3 +109,5 @@ function mapOdooStage(stage: unknown): string {
 }
 
 export { OdooAdapter } from "./odoo-adapter.js";
+export { parseCsv, importCsv, CSV_PRESETS } from "./csv-adapter.js";
+export type { CsvColumnMapping, CsvImportOptions, CsvPreset } from "./csv-adapter.js";

@@ -46,7 +46,9 @@ function fieldToZod(fieldDef: FieldDefinition): z.ZodTypeAny {
       schema = z.string().uuid();
       break;
     case "json":
-      schema = z.record(z.unknown());
+      // JSON fields hold either objects or arrays (e.g. pipeline stages,
+      // automation conditions/actions).
+      schema = z.union([z.record(z.unknown()), z.array(z.unknown())]);
       break;
     default:
       schema = z.unknown();
@@ -77,5 +79,13 @@ export function validateEntityData(
     };
   }
 
-  return { success: true, data: result.data as Record<string, unknown> };
+  let output = result.data as Record<string, unknown>;
+  if (partial) {
+    // Field defaults still apply under .partial(); for updates that would
+    // silently reset every omitted defaulted field. Keep only the keys the
+    // caller actually sent.
+    output = Object.fromEntries(Object.entries(output).filter(([key]) => key in data));
+  }
+
+  return { success: true, data: output };
 }

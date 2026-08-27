@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
-import { registerEntities, getDb, closeDb } from "@meridian/core";
+import { registerEntities, getDb, closeDb, hashPassword } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 
 async function seed() {
@@ -19,10 +18,30 @@ async function seed() {
   `);
   const tenantId = (tenantResult[0] as { id: string }).id;
 
-  const passwordHash = createHash("sha256").update("demo1234").digest("hex");
+  const passwordHash = hashPassword("demo1234");
   await db.execute(sql`
     INSERT INTO users (tenant_id, email, name, role, password_hash)
     VALUES (${tenantId}, 'admin@demo.com', 'Demo Admin', 'admin', ${passwordHash})
+  `);
+
+  // Demo automation: winning a deal spins up a delivery project automatically
+  await db.execute(sql`
+    INSERT INTO automation (tenant_id, name, entity, event, conditions, actions, enabled)
+    VALUES (
+      ${tenantId},
+      'Won deal → kickoff project',
+      'deal',
+      'updated',
+      ${JSON.stringify([{ field: "stage", op: "eq", value: "won" }])}::jsonb,
+      ${JSON.stringify([
+        {
+          type: "create_record",
+          entity: "project",
+          data: { name: "Delivery: {{title}}", status: "planning", description: "Auto-created from won deal {{recordId}}" },
+        },
+      ])}::jsonb,
+      true
+    )
   `);
 
   console.log("Seed complete:");

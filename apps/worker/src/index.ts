@@ -1,11 +1,12 @@
 import { Worker, Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { registerEntities } from "@meridian/core";
+import { registerEntities, startAutomationEngine } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { OdooAdapter } from "@meridian/migration";
 import type { ActorContext } from "@meridian/core";
 
 registerEntities(allEntities);
+startAutomationEngine();
 
 const connection = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379", {
   maxRetriesPerRequest: null,

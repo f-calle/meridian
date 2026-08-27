@@ -59,7 +59,7 @@ Copy from [`.env.example`](../.env.example):
 | `MCP_URL` | web, worker | `http://mcp.railway.internal:8080` |
 | `NEXT_PUBLIC_API_URL` | web | Your public API URL or internal |
 | `NEXT_PUBLIC_APP_URL` | web | `https://your-app.up.railway.app` |
-| `BETTER_AUTH_SECRET` | web, api | Long random string |
+| `AUTH_SECRET` | api | Long random string (signs session tokens) |
 | `ANTHROPIC_API_KEY` | api | Your Anthropic key |
 | `MERIDIAN_LLM_MODEL` | api | `claude-sonnet-4-20250514` |
 
@@ -82,7 +82,7 @@ Login with seeded credentials: `admin@demo.com` / `demo1234`
 
 - **Never expose MCP publicly** — it has no auth of its own
 - API should use Railway private networking; web proxies authenticated requests
-- Rotate `BETTER_AUTH_SECRET` and demo credentials in production
+- Rotate `AUTH_SECRET` and demo credentials in production
 
 ## Local Development Parity
 

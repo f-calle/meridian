@@ -2,14 +2,15 @@
   "name": "meridian",
   "version": "0.1.0",
   "private": true,
-  "description": "AI-native ERP platform — CRM, projects, and more",
+  "description": "AI-native ERP platform \u2014 CRM, projects, and more",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "db:migrate": "set -a && . ./.env && set +a && tsx scripts/migrate.ts",
-    "db:seed": "set -a && . ./.env && set +a && tsx scripts/seed.ts"
+    "db:seed": "set -a && . ./.env && set +a && tsx scripts/seed.ts",
+    "test": "turbo run test"
   },
   "devDependencies": {
     "@meridian/core": "workspace:*",

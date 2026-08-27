@@ -81,6 +81,20 @@ export const api = {
   delete: (entity: string, id: string) =>
     apiFetch<{ success: boolean }>(`/api/${entity}/delete/${id}`, { method: "DELETE" }),
 
+  briefing: () =>
+    apiFetch<{
+      generatedAt: string;
+      summary: string;
+      data: {
+        pipeline: { group: string | null; count: number; value: number | null }[];
+        openDealCount: number;
+        openDealValue: number;
+        overdueActivities: Record<string, unknown>[];
+        openTasksByStatus: { status: string | null; count: number }[];
+        activeProjects: number;
+      };
+    }>("/api/ai/briefing"),
+
   chat: (message: string, history?: { role: "user" | "assistant"; content: string }[]) =>
     apiFetch<{ response: string }>("/api/ai/chat", {
       method: "POST",
