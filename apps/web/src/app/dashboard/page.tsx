@@ -190,22 +190,24 @@ export default function DashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Open Pipeline</p>
                 <TrendingUp className="h-4 w-4 text-emerald-500" aria-hidden="true" />
               </div>
-              {statsLoading ? (
+              {statsLoading || briefingLoading ? (
                 <Skeleton className="h-9 w-32" />
+              ) : briefingError || !briefing ? (
+                <p className="text-sm text-muted-foreground">Pipeline stats unavailable right now.</p>
               ) : (
                 <>
                   <div className="flex items-baseline gap-2">
-                    <span className="tabular-nums text-3xl font-bold">{currency.format(briefing?.openDealValue ?? 0)}</span>
+                    <span className="tabular-nums text-3xl font-bold">{currency.format(briefing.openDealValue)}</span>
                   </div>
                   <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
                       className="h-full rounded-full bg-emerald-500"
-                      style={{ width: `${Math.min(100, briefing?.openDealCount ? (briefing.openDealCount / Math.max(dealCount, 1)) * 100 : 0)}%` }}
+                      style={{ width: `${Math.min(100, (briefing.openDealCount / Math.max(dealCount, 1)) * 100)}%` }}
                       role="presentation"
                     />
                   </div>
                   <p className="mt-2 text-[10px] text-muted-foreground tabular-nums">
-                    {briefing?.openDealCount ?? 0} of {dealCount.toLocaleString()} deals open
+                    {briefing.openDealCount} of {dealCount.toLocaleString()} deals open
                   </p>
                 </>
               )}

@@ -63,7 +63,8 @@ export function AiChat({ open, onOpenChange }: AiChatProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    // Enter sends; Shift+Enter inserts a newline (Cmd/Ctrl+Enter also sends)
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
     }
@@ -167,7 +168,7 @@ export function AiChat({ open, onOpenChange }: AiChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Meridian AI…"
+              placeholder="Ask Meridian AI… (Shift+Enter for newline)"
               disabled={loading}
               rows={2}
               className="flex min-h-[44px] flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"

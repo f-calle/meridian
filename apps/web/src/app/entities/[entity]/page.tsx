@@ -73,16 +73,16 @@ export default function EntityListPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const nextParams = new URLSearchParams(searchParams.toString());
       const trimmed = searchInput.trim();
+      // Only touch the URL when the search text actually changed — otherwise
+      // this effect (re-run on any searchParams change) wipes the page param.
+      if (trimmed === (searchParams.get("q") ?? "")) return;
+      const nextParams = new URLSearchParams(searchParams.toString());
       if (trimmed) nextParams.set("q", trimmed);
       else nextParams.delete("q");
       nextParams.delete("page");
       const next = nextParams.toString();
-      const current = searchParams.toString();
-      if (next !== current) {
-        router.replace(next ? `?${next}` : "?", { scroll: false });
-      }
+      router.replace(next ? `?${next}` : "?", { scroll: false });
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchInput, router, searchParams]);
@@ -107,6 +107,11 @@ export default function EntityListPage() {
       setRecords(listResult.data);
       setTotal(listResult.total);
       setSchema(schemaResult);
+      // Deleting the tail of the last page can leave us beyond the end —
+      // snap back to the last page that still has records.
+      if (listResult.data.length === 0 && page > 1) {
+        setPage(Math.max(1, Math.ceil(listResult.total / PAGE_SIZE)));
+      }
     } catch (err) {
       toast({
         title: "Failed to load records",
@@ -116,7 +121,7 @@ export default function EntityListPage() {
     } finally {
       setLoading(false);
     }
-  }, [entity, urlSearch, page, toast]);
+  }, [entity, urlSearch, page, toast, setPage]);
 
   useEffect(() => {
     load();

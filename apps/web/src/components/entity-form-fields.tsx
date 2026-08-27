@@ -34,7 +34,13 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
                   name={field.name}
                   className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder='JSON, e.g. [{"field": "stage", "op": "eq", "value": "won"}]…'
-                  value={(formData[field.name] as string) ?? (typeof formData[field.name] === "object" ? JSON.stringify(formData[field.name], null, 2) : "")}
+                  value={
+                    typeof formData[field.name] === "string"
+                      ? (formData[field.name] as string)
+                      : formData[field.name] == null
+                        ? ""
+                        : JSON.stringify(formData[field.name], null, 2)
+                  }
                   onChange={(e) => onChange({ ...formData, [field.name]: e.target.value })}
                 />
               ) : field.type === "select" ? (
@@ -85,7 +91,9 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
                       ...formData,
                       [field.name]:
                         field.type === "number" || field.type === "currency"
-                          ? Number(e.target.value)
+                          ? e.target.value === ""
+                            ? undefined
+                            : Number(e.target.value)
                           : e.target.value,
                     })
                   }

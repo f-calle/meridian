@@ -15,6 +15,7 @@ import {
   signToken,
   verifyToken,
   startAutomationEngine,
+  checkPermission,
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
@@ -227,31 +228,41 @@ app.get("/api/:entity/audit/:id", async (c) => {
 
   const entityName = c.req.param("entity")!;
   const recordId = c.req.param("id")!;
-  if (!entityRegistry.get(entityName)) {
+  const entity = entityRegistry.get(entityName);
+  if (!entity) {
     return c.json({ error: "Entity not found" }, 404);
   }
 
-  const db = getDb();
-  const result = await db.execute(sql`
-    SELECT id, action, actor_id, actor_type, diff, created_at
-    FROM audit_log
-    WHERE tenant_id = ${actor.tenantId}
-      AND entity_name = ${entityName}
-      AND record_id = ${recordId}::uuid
-    ORDER BY created_at DESC
-    LIMIT 100
-  `);
+  try {
+    // Audit diffs contain full field values — same ACL as reading the record
+    checkPermission(entity, actor, "read");
 
-  const entries = (result as unknown as Record<string, unknown>[]).map((row) => ({
-    id: row.id,
-    action: row.action,
-    actorId: row.actor_id,
-    actorType: row.actor_type,
-    diff: row.diff,
-    createdAt: row.created_at,
-  }));
+    const db = getDb();
+    const result = await db.execute(sql`
+      SELECT id, action, actor_id, actor_type, diff, created_at
+      FROM audit_log
+      WHERE tenant_id = ${actor.tenantId}
+        AND entity_name = ${entityName}
+        AND record_id = ${recordId}::uuid
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
 
-  return c.json({ entries });
+    const entries = (result as unknown as Record<string, unknown>[]).map((row) => ({
+      id: row.id,
+      action: row.action,
+      actorId: row.actor_id,
+      actorType: row.actor_type,
+      diff: row.diff,
+      createdAt: row.created_at,
+    }));
+
+    return c.json({ entries });
+  } catch (err) {
+    const message = (err as Error).message;
+    const status = message.includes("Permission") || message.includes("cannot") ? 403 : 400;
+    return c.json({ error: message }, status);
+  }
 });
 
 // Bulk delete records
@@ -264,7 +275,12 @@ app.post("/api/:entity/bulk-delete", async (c) => {
     return c.json({ error: "Entity not found" }, 404);
   }
 
-  const { ids } = await c.req.json<{ ids: string[] }>();
+  let ids: string[];
+  try {
+    ({ ids } = await c.req.json<{ ids: string[] }>());
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
   if (!Array.isArray(ids) || ids.length === 0) {
     return c.json({ error: "ids must be a non-empty array" }, 400);
   }

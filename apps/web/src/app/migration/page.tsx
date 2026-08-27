@@ -106,10 +106,10 @@ export default function MigrationPage() {
   async function handleImport(dryRun: boolean) {
     setLoading(true);
     setError("");
-    setLastDryRun(dryRun);
     try {
       const result = await api.odooImport(config, dryRun);
       setReport(result as MigrationReport);
+      setLastDryRun(dryRun);
     } catch (err) {
       setError((err as Error).message || "Import failed. Run a dry run first to preview changes.");
     } finally {
@@ -389,6 +389,13 @@ export default function MigrationPage() {
                     )),
                   )}
                 </ul>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
               </div>
             )}
 
