@@ -32,6 +32,13 @@ git add packages/core/src/db/entity-schema.generated.ts packages/core/drizzle
 - runs `drizzle-kit generate`, which diffs that against the last snapshot and
   writes a numbered migration into `packages/core/drizzle/`.
 
+Migrations get a generated name unless you supply one, and a named migration is
+much easier to find later:
+
+```
+pnpm db:generate --name=user_token_version
+```
+
 **Run it in a terminal.** When a change looks like it could be a rename,
 drizzle-kit stops and asks whether `notes → internal_notes` is a rename or a
 drop-and-create. Answering is the point: the two produce the same schema and
@@ -87,7 +94,9 @@ older DDL produced, so adopting a live database applies nothing but the three
 indexes that DDL never got around to creating.
 
 Every migration from 0001 on is generated, non-idempotent, and applied once —
-a test enforces that distinction.
+a test enforces that distinction. `0001_user_token_version.sql` is what a normal
+one looks like: a single `ALTER TABLE ... ADD COLUMN`, produced by adding one
+field to the `users` table in `schema.ts`.
 
 ## Column types
 

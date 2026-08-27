@@ -25,7 +25,7 @@ service variable `RAILWAY_DOCKERFILE_PATH` (e.g. `apps/api/Dockerfile`).
 | `DATABASE_URL` | api, worker, mcp | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | api, worker | `${{Redis.REDIS_URL}}` |
 | `AUTH_SECRET` | api | long random string (`openssl rand -hex 32`) — required |
-| `AUTO_MIGRATE` | api | `true` — creates/updates tables on boot (idempotent) |
+| `AUTO_MIGRATE` | api | `true` — applies pending migrations on boot (see [schema-migrations.md](schema-migrations.md)) |
 | `AUTO_SEED` | api | `true` for the demo tenant; remove for a blank instance |
 | `NEXT_PUBLIC_API_URL` | web | the api service's public URL (build-time) |
 | `NEXT_PUBLIC_APP_URL` | web, api | the web service's public URL (build-time on web; CORS origin on api) |
