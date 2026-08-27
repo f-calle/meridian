@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RelationLabel, RelationPicker } from "@/components/relation-field";
 import type { EntityField } from "@/lib/entity-ui";
 import { formatFieldValue } from "@/lib/entity-ui";
 
@@ -23,12 +24,26 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
           {mode === "view" ? (
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{field.label}</p>
-              <p className="text-sm break-words whitespace-pre-wrap">{formatFieldValue(formData[field.name], field.type)}</p>
+              <p className="text-sm break-words whitespace-pre-wrap">
+                {field.type === "relation" && field.relation ? (
+                  <RelationLabel entity={field.relation} id={formData[field.name] as string | null} />
+                ) : (
+                  formatFieldValue(formData[field.name], field.type)
+                )}
+              </p>
             </div>
           ) : (
             <>
               <Label htmlFor={field.name}>{field.label}</Label>
-              {field.type === "json" ? (
+              {field.type === "relation" && field.relation ? (
+                <RelationPicker
+                  entity={field.relation}
+                  value={(formData[field.name] as string) ?? null}
+                  onChange={(recordId) => onChange({ ...formData, [field.name]: recordId })}
+                  required={field.required}
+                  id={field.name}
+                />
+              ) : field.type === "json" ? (
                 <textarea
                   id={field.name}
                   name={field.name}

@@ -32,6 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EntityFormFields } from "@/components/entity-form-fields";
+import { RelationLabel } from "@/components/relation-field";
+import { AiAutomationDialog } from "@/components/ai-automation-dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -264,6 +266,7 @@ export default function EntityListPage() {
               name="entity-search"
             />
           </div>
+          {entity === "automation" && <AiAutomationDialog onCreated={load} />}
           <Button onClick={() => setShowForm(true)} className="touch-manipulation">
             <Plus className="mr-1 h-4 w-4" aria-hidden="true" /> New
           </Button>
@@ -383,7 +386,11 @@ export default function EntityListPage() {
                     </TableCell>
                     {displayFields.map((f) => (
                       <TableCell key={f.name} className="max-w-[200px] truncate">
-                        {formatFieldValue(record[f.name], f.type)}
+                        {f.type === "relation" && f.relation ? (
+                          <RelationLabel entity={f.relation} id={record[f.name] as string | null} />
+                        ) : (
+                          formatFieldValue(record[f.name], f.type)
+                        )}
                       </TableCell>
                     ))}
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>

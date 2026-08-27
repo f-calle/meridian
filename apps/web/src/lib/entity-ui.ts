@@ -4,6 +4,7 @@ export type EntityField = {
   label: string;
   required?: boolean;
   options?: string[];
+  relation?: string;
 };
 
 export function formatFieldValue(value: unknown, type?: string): string {

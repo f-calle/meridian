@@ -55,9 +55,10 @@ export const api = {
       `/api/entities/${entity}/schema`,
     ),
 
-  list: (entity: string, params?: { page?: number; search?: string }) => {
+  list: (entity: string, params?: { page?: number; pageSize?: number; search?: string }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
     if (params?.search) qs.set("search", params.search);
     return apiFetch<{ data: Record<string, unknown>[]; total: number; page: number; pageSize: number }>(
       `/api/${entity}/list?${qs}`,
@@ -121,7 +122,50 @@ export const api = {
       `/api/${entity}/bulk-delete`,
       { method: "POST", body: JSON.stringify({ ids }) },
     ),
+
+  listUsers: () => apiFetch<{ users: TeamUser[] }>("/api/users"),
+
+  createUser: (data: { email: string; name: string; role: string; password: string }) =>
+    apiFetch<TeamUser>("/api/users", { method: "POST", body: JSON.stringify(data) }),
+
+  setUserRole: (id: string, role: string) =>
+    apiFetch<{ success: boolean }>(`/api/users/${id}/role`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+
+  deleteUser: (id: string) =>
+    apiFetch<{ success: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ success: boolean }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  draftAutomation: (prompt: string) =>
+    apiFetch<AutomationDraft>("/api/ai/automation/draft", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
 };
+
+export interface TeamUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface AutomationDraft {
+  name: string;
+  entity: string;
+  event: "created" | "updated" | "deleted";
+  conditions: unknown[];
+  actions: unknown[];
+  summary: string;
+}
 
 export interface AuditEntry {
   id: string;

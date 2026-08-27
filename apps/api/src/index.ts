@@ -20,7 +20,9 @@ import {
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
 import { OdooAdapter, importCsv, CSV_PRESETS } from "@meridian/migration";
-import { AgentOrchestrator, generateBriefing } from "@meridian/ai";
+import { AgentOrchestrator, generateBriefing, draftAutomation } from "@meridian/ai";
+import { isLoginBlocked, recordLoginFailure, clearLoginFailures } from "./rate-limit.js";
+import { registerUserRoutes } from "./users.js";
 import { runMigrations, seedDemoTenant } from "@meridian/core";
 import { hooks as examplePluginHooks } from "meridian-example-plugin";
 import type { ActorContext } from "@meridian/core";
@@ -49,6 +51,15 @@ app.get("/health", (c) => c.json({ status: "ok", service: "meridian-api" }));
 // Auth
 app.post("/api/auth/login", async (c) => {
   const { email, password } = await c.req.json<{ email: string; password: string }>();
+  const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const throttleKey = `${clientIp}:${(email ?? "").toLowerCase()}`;
+
+  const { blocked, retryAfterSeconds } = await isLoginBlocked(throttleKey);
+  if (blocked) {
+    c.header("Retry-After", String(retryAfterSeconds));
+    return c.json({ error: "Too many failed attempts. Try again later." }, 429);
+  }
+
   const db = getDb();
 
   const result = await db.execute(sql`
@@ -72,8 +83,10 @@ app.post("/api/auth/login", async (c) => {
       }
     | undefined;
   if (!user || !verifyPassword(password, user.password_hash)) {
+    await recordLoginFailure(throttleKey);
     return c.json({ error: "Invalid credentials" }, 401);
   }
+  await clearLoginFailures(throttleKey);
 
   // Transparently upgrade legacy unsalted hashes on successful login
   if (isLegacyHash(user.password_hash)) {
@@ -320,6 +333,33 @@ app.post("/api/ai/chat", async (c) => {
   const orchestrator = new AgentOrchestrator(actor);
   const result = await orchestrator.chat(message, history ?? []);
   return c.json(result);
+});
+
+registerUserRoutes(app, getActor);
+
+// Draft an automation rule from an English description
+app.post("/api/ai/automation/draft", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return c.json({ error: "AI not configured — set ANTHROPIC_API_KEY" }, 503);
+  }
+
+  let body: { prompt?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!body.prompt?.trim()) return c.json({ error: "prompt is required" }, 400);
+
+  try {
+    const draft = await draftAutomation(body.prompt.trim());
+    return c.json(draft);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
 });
 
 // Daily briefing: pipeline health, overdue work, open tasks

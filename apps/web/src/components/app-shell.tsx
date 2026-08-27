@@ -17,6 +17,8 @@ import {
   LogOut,
   Search,
   Menu,
+  Columns3,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -33,6 +35,7 @@ const navItems = [
   { href: "/entities/contact", label: "Contacts", icon: Users },
   { href: "/entities/company", label: "Companies", icon: Building2 },
   { href: "/entities/deal", label: "Deals", icon: Target },
+  { href: "/pipeline", label: "Pipeline", icon: Columns3 },
   { href: "/entities/activity", label: "Activities", icon: Clock },
   { section: "Projects" },
   { href: "/entities/project", label: "Projects", icon: FolderKanban },
@@ -42,6 +45,7 @@ const navItems = [
   { section: "Tools" },
   { href: "/entities/automation", label: "Automations", icon: Sparkles },
   { href: "/migration", label: "Import from Odoo", icon: Import },
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

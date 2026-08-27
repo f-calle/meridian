@@ -18,7 +18,8 @@
     "@meridian/ui-schema": "workspace:*",
     "meridian-example-plugin": "workspace:*",
     "hono": "^4.6.16",
-    "drizzle-orm": "^0.38.3"
+    "drizzle-orm": "^0.38.3",
+    "ioredis": "^5.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
