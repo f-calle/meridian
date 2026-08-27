@@ -56,3 +56,28 @@ describe("validateCsvMapping", () => {
     );
   });
 });
+
+describe("withEveryColumnAccountedFor", () => {
+  it("backfills columns the model neither mapped nor explained", async () => {
+    const { withEveryColumnAccountedFor } = await import("./csv-mapping.js");
+    const result = withEveryColumnAccountedFor(
+      { entity: "map_contact", mapping: [{ column: "Mail", field: "email" }], unmapped: [] },
+      ["Mail", "Ref", "Junk"],
+    );
+    expect(result.unmapped.map((u) => u.column)).toEqual(["Ref", "Junk"]);
+  });
+
+  it("treats the external id column as accounted for", async () => {
+    const { withEveryColumnAccountedFor } = await import("./csv-mapping.js");
+    const result = withEveryColumnAccountedFor(
+      {
+        entity: "map_contact",
+        mapping: [{ column: "Mail", field: "email" }],
+        externalIdColumn: "Ref",
+        unmapped: [],
+      },
+      ["Mail", "Ref"],
+    );
+    expect(result.unmapped).toEqual([]);
+  });
+});
