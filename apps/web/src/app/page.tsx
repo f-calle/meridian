@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MeridianLogo } from "@/components/meridian-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { api, setToken } from "@/lib/api";
 import { usePageTitle } from "@/hooks/use-page-title";
 
@@ -35,7 +36,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle className="touch-manipulation" />
+      </div>
       <Card className="w-full max-w-md border-border/80 shadow-elevated">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">

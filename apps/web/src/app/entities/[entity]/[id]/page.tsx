@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EntityFormFields } from "@/components/entity-form-fields";
+import { EntityAuditTimeline } from "@/components/entity-audit-timeline";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -229,6 +230,10 @@ export default function EntityDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <EntityAuditTimeline entity={entity} recordId={id} />
+      </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

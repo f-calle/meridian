@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Trash2, Eye } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Eye, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,8 +57,15 @@ export default function EntityListPage() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   usePageTitle(schema?.pluralLabel ?? entity);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, urlSearch, entity]);
 
   useEffect(() => {
     setSearchInput(urlSearch);
@@ -152,6 +159,60 @@ export default function EntityListPage() {
         variant: "destructive",
       });
     }
+  }
+
+  async function confirmBulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const result = await api.bulkDelete(entity, ids);
+      setBulkDeleteOpen(false);
+      setSelectedIds(new Set());
+      load();
+      if (result.failed.length === 0) {
+        toast({ title: `Deleted ${result.deleted.length} records` });
+      } else {
+        toast({
+          title: `Deleted ${result.deleted.length} of ${ids.length} records`,
+          description: `${result.failed.length} could not be deleted.`,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Bulk delete failed",
+        description: (err as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  const pageRecordIds = useMemo(() => records.map((r) => String(r.id)), [records]);
+  const allPageSelected = pageRecordIds.length > 0 && pageRecordIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelectAll() {
+    if (allPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pageRecordIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => new Set([...prev, ...pageRecordIds]));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function confirmDelete() {
@@ -254,10 +315,42 @@ export default function EntityListPage() {
         </Card>
       ) : (
         <>
+          {someSelected && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+              <span className="text-sm font-medium tabular-nums">{selectedIds.size} selected</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="touch-manipulation"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="mr-1 h-4 w-4" aria-hidden="true" />
+                Delete Selected
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="touch-manipulation"
+                onClick={() => setSelectedIds(new Set())}
+                aria-label="Clear selection"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <div className="overflow-hidden rounded-lg border border-border/80 shadow-elevated">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all on this page"
+                      className="h-4 w-4 rounded border-input"
+                    />
+                  </TableHead>
                   {displayFields.map((f) => (
                     <TableHead key={f.name}>{f.label}</TableHead>
                   ))}
@@ -265,12 +358,23 @@ export default function EntityListPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {records.map((record) => (
+                {records.map((record) => {
+                  const recordId = String(record.id);
+                  return (
                   <TableRow
-                    key={record.id as string}
-                    className="cursor-pointer"
+                    key={recordId}
+                    className={selectedIds.has(recordId) ? "cursor-pointer bg-primary/5" : "cursor-pointer"}
                     onClick={() => router.push(`/entities/${entity}/${record.id}`)}
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(recordId)}
+                        onChange={() => toggleSelect(recordId)}
+                        aria-label={`Select ${recordLabel(record)}`}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                    </TableCell>
                     {displayFields.map((f) => (
                       <TableCell key={f.name} className="max-w-[200px] truncate">
                         {formatFieldValue(record[f.name], f.type)}
@@ -293,7 +397,7 @@ export default function EntityListPage() {
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onSelect={() =>
-                              setDeleteTarget({ id: record.id as string, label: recordLabel(record) })
+                              setDeleteTarget({ id: recordId, label: recordLabel(record) })
                             }
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -303,13 +407,33 @@ export default function EntityListPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} className="mt-4" />
         </>
       )}
+
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} {schema?.pluralLabel?.toLowerCase() ?? "records"}?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete {selectedIds.size} selected records. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmBulkDelete} disabled={bulkDeleting} className="touch-manipulation">
+              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>

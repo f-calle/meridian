@@ -24,6 +24,7 @@ import { MeridianLogo } from "@/components/meridian-logo";
 import { getToken, clearToken } from "@/lib/api";
 import { CommandPalette } from "@/components/command-palette";
 import { AiChat } from "@/components/ai-chat";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -82,6 +83,7 @@ function SidebarFooter({
 }) {
   return (
     <div className="space-y-2 border-t border-border/80 p-3">
+      <ThemeToggle className="w-full justify-start gap-2 touch-manipulation" />
       <Button variant="outline" size="sm" className="w-full justify-start gap-2 touch-manipulation" onClick={onCommandPalette}>
         <Command className="h-4 w-4" aria-hidden="true" /> Command Palette
         <kbd className="ml-auto text-xs text-muted-foreground">⌘&nbsp;K</kbd>
