@@ -158,17 +158,21 @@ export default function EntityDetailPage() {
   }
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="mx-auto w-full max-w-7xl p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 touch-manipulation" aria-label={`Back to ${schema.pluralLabel}`}>
             <Link href={`/entities/${entity}`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{recordTitle(record, schema.label)}</h1>
-            <p className="text-sm text-muted-foreground">{schema.label} details</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold tracking-tight">{recordTitle(record, schema.label)}</h1>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>{schema.label}</span>
+              <span className="h-1 w-1 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+              <span className="tabular-nums">ID: {String(record.id).slice(0, 8)}</span>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -214,25 +218,29 @@ export default function EntityDetailPage() {
         </div>
       </div>
 
-      <Card className="border-border/80 shadow-elevated">
-        <CardHeader>
-          <CardTitle className="text-lg">{editing ? `Edit ${schema.label}` : schema.label}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {editing ? (
-            <form id="entity-detail-form" onSubmit={handleSave} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <EntityFormFields fields={schema.fields} formData={formData} onChange={setFormData} mode="edit" />
-            </form>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <EntityFormFields fields={schema.fields} formData={record} onChange={() => {}} mode="view" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <Card className="glass-card rounded-xl shadow-layered lg:col-span-8">
+          <CardHeader className="border-b border-border/80 bg-muted/20">
+            <CardTitle className="text-sm font-bold tracking-tight">
+              {editing ? `Edit ${schema.label}` : "Basic Information"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            {editing ? (
+              <form id="entity-detail-form" onSubmit={handleSave} className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+                <EntityFormFields fields={schema.fields} formData={formData} onChange={setFormData} mode="edit" />
+              </form>
+            ) : (
+              <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+                <EntityFormFields fields={schema.fields} formData={record} onChange={() => {}} mode="view" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <div className="mt-6">
-        <EntityAuditTimeline entity={entity} recordId={id} />
+        <div className="lg:col-span-4">
+          <EntityAuditTimeline entity={entity} recordId={id} compact />
+        </div>
       </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

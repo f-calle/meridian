@@ -15,7 +15,7 @@ import {
   Import,
   Sparkles,
   LogOut,
-  Command,
+  Search,
   Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ const navItems = [
   { href: "/entities/time_entry", label: "Time Entries", icon: Clock },
   { href: "/entities/milestone", label: "Milestones", icon: Flag },
   { section: "Tools" },
+  { href: "/entities/automation", label: "Automations", icon: Sparkles },
   { href: "/migration", label: "Import from Odoo", icon: Import },
 ];
 
@@ -48,7 +49,11 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
     <>
       {navItems.map((item, i) =>
         "section" in item ? (
-          <div key={i} className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <div
+            key={i}
+            className="select-none px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+            aria-hidden="true"
+          >
             {item.section}
           </div>
         ) : (
@@ -56,11 +61,12 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             key={item.href}
             href={item.href!}
             onClick={onNavigate}
+            aria-current={pathname === item.href || pathname.startsWith(`${item.href}/`) ? "page" : undefined}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors touch-manipulation",
               pathname === item.href || pathname.startsWith(`${item.href}/`)
-                ? "border-l-2 border-primary bg-primary/10 pl-[10px] font-medium text-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                ? "border-l-2 border-primary bg-primary/10 pl-[10px] font-medium text-primary"
+                : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
             )}
           >
             <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -82,15 +88,25 @@ function SidebarFooter({
   onLogout: () => void;
 }) {
   return (
-    <div className="space-y-2 border-t border-border/80 p-3">
+    <div className="mt-auto space-y-1 border-t border-border/80 p-4">
       <ThemeToggle className="w-full justify-start gap-2 touch-manipulation" />
-      <Button variant="outline" size="sm" className="w-full justify-start gap-2 touch-manipulation" onClick={onCommandPalette}>
-        <Command className="h-4 w-4" aria-hidden="true" /> Command Palette
-        <kbd className="ml-auto text-xs text-muted-foreground">⌘&nbsp;K</kbd>
-      </Button>
-      <Button variant="outline" size="sm" className="w-full justify-start gap-2 touch-manipulation" onClick={onAiOpen}>
-        <Sparkles className="h-4 w-4" aria-hidden="true" /> AI Assistant
-      </Button>
+      <button
+        type="button"
+        onClick={onCommandPalette}
+        className="flex w-full items-center gap-2 rounded-md border border-border/80 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/40 touch-manipulation"
+      >
+        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>Quick search…</span>
+        <kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] opacity-70">⌘&nbsp;K</kbd>
+      </button>
+      <button
+        type="button"
+        onClick={onAiOpen}
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5 touch-manipulation"
+      >
+        <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Ask Meridian AI
+      </button>
       <Button variant="ghost" size="sm" className="w-full justify-start gap-2 touch-manipulation" onClick={onLogout}>
         <LogOut className="h-4 w-4" aria-hidden="true" /> Sign Out
       </Button>
@@ -126,13 +142,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border/80 bg-card md:flex">
-        <div className="flex h-14 items-center gap-3 border-b border-border/80 px-4">
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className="glass-sidebar hidden w-[260px] shrink-0 flex-col md:flex">
+        <div className="flex h-14 items-center gap-3 border-b border-border/80 px-6">
           <MeridianLogo size="sm" />
-          <span className="font-semibold tracking-tight">Meridian</span>
+          <span className="font-bold tracking-tight">MERIDIAN</span>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto overscroll-contain p-3" aria-label="Main navigation">
+        <nav className="scrollbar-thin flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-4" aria-label="Main navigation">
           <NavLinks pathname={pathname} />
         </nav>
         <SidebarFooter
@@ -143,7 +159,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/80 bg-card px-4 md:hidden">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/80 bg-card/30 px-4 backdrop-blur-md md:hidden">
           <Button
             variant="outline"
             size="icon"
@@ -157,7 +173,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="font-semibold">Meridian</span>
         </header>
 
-        <main id="main-content" className="flex-1 overflow-y-auto overscroll-contain">
+        <main id="main-content" className="scrollbar-thin flex-1 overflow-y-auto overscroll-contain">
           {children}
         </main>
       </div>
