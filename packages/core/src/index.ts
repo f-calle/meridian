@@ -26,6 +26,13 @@ export {
   isReferentialIntegrityError,
 } from "./services/references.js";
 export type { Reference } from "./services/references.js";
+export {
+  isSessionCurrent,
+  revokeSessions,
+  currentTokenVersion,
+  forgetSession,
+  clearSessionCache,
+} from "./auth/sessions.js";
 export { getDb, closeDb } from "./db/client.js";
 export { expectedColumns, sqlTypeFor } from "./db/entity-store.js";
 export { renderEntitySchema, drizzleColumnFor, tableConstName } from "./db/schema-codegen.js";

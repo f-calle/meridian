@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Trash2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,12 +17,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { api, type TeamUser } from "@/lib/api";
+import { api, clearToken, type TeamUser } from "@/lib/api";
 
 const ROLES = ["admin", "sales", "member"] as const;
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(true);
@@ -100,7 +102,12 @@ export default function SettingsPage() {
     try {
       await api.changePassword(pw.current, pw.next);
       setPw({ current: "", next: "", confirm: "" });
-      toast({ title: "Password updated" });
+      // The change revoked every session for this account, this one included —
+      // that is the point of it. Send the user to sign in with the new password
+      // rather than leaving them clicking on a token the API now rejects.
+      toast({ title: "Password updated — please sign in again" });
+      clearToken();
+      router.push("/login");
     } catch (err) {
       toast({ title: "Password change failed", description: (err as Error).message, variant: "destructive" });
     } finally {

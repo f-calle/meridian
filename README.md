@@ -71,6 +71,7 @@ See [`.env.example`](.env.example) for the full annotated list.
 | `MERIDIAN_CORS_ORIGINS` | Comma-separated browser origin allowlist; overrides the above |
 | `MERIDIAN_DB_POOL_MAX` | Max Postgres connections per instance (default 10) |
 | `MERIDIAN_STATEMENT_TIMEOUT_MS` | Cap on a single request-path query (default 30000) |
+| `MERIDIAN_SESSION_CACHE_MS` | How long a revoked session can linger (default 15000) |
 
 ## Security
 

@@ -7,6 +7,12 @@ export interface TokenPayload {
   role: string;
   tenantId: string;
   tenantName?: string;
+  /**
+   * The user's token_version when this token was signed. A token whose version
+   * is behind the user's current one has been revoked. Absent on tokens issued
+   * before revocation existed, which read as 0 — the column default.
+   */
+  v?: number;
   /** Unix seconds */
   exp: number;
   [key: string]: unknown;

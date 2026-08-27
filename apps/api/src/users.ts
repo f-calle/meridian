@@ -1,6 +1,6 @@
 import type { App, AppContext } from "./app-env.js";
 import { sql } from "drizzle-orm";
-import { getDb, hashPassword, verifyPassword } from "@meridian/core";
+import { getDb, hashPassword, verifyPassword, revokeSessions, forgetSession } from "@meridian/core";
 import type { ActorContext } from "@meridian/core";
 
 const ASSIGNABLE_ROLES = new Set(["admin", "sales", "member"]);
@@ -119,6 +119,11 @@ export function registerUserRoutes(
       RETURNING id
     `);
     if (result.length === 0) return c.json({ error: "User not found" }, 404);
+
+    // The old token still carries the old role, and the role is what the ACL
+    // reads. Without this, a demoted admin keeps admin rights until their token
+    // expires — up to a week.
+    await revokeSessions(userId!);
     return c.json({ success: true });
   });
 
@@ -136,6 +141,10 @@ export function registerUserRoutes(
       RETURNING id
     `);
     if (result.length === 0) return c.json({ error: "User not found" }, 404);
+
+    // The row is gone, so the session check will refuse the token; drop the
+    // cached version too, or the removed user keeps working for a few seconds.
+    forgetSession(userId!);
     return c.json({ success: true });
   });
 
@@ -169,6 +178,10 @@ export function registerUserRoutes(
       UPDATE users SET password_hash = ${hashPassword(body.newPassword)}, updated_at = NOW()
       WHERE id = ${actor.id}::uuid
     `);
-    return c.json({ success: true });
+    // Changing a password is how someone responds to a session they think is
+    // compromised, so it has to end the other sessions — including this one.
+    // The client re-authenticates with the new password.
+    await revokeSessions(actor.id);
+    return c.json({ success: true, reauthenticate: true });
   });
 }

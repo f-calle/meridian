@@ -15,6 +15,7 @@ import {
   isLegacyHash,
   signToken,
   verifyToken,
+  isSessionCurrent,
   startAutomationEngine,
   checkPermission,
 } from "@meridian/core";
@@ -77,8 +78,12 @@ app.use("/api/*", (c, next) =>
 // Resolve the bearer token once per request. Routes read c.get("actor"); the
 // throttles read it too, so a limit follows the account rather than the proxy.
 app.use("/api/*", async (c, next) => {
-  const actor = actorFromRequest(c);
-  if (actor) c.set("actor", actor);
+  const verified = actorFromRequest(c);
+  // A valid signature is not enough: the user may have been removed, or every
+  // session invalidated by a password or role change since the token was signed.
+  if (verified && (await isSessionCurrent(verified.actor.id, verified.tokenVersion))) {
+    c.set("actor", verified.actor);
+  }
   await next();
 });
 
@@ -125,7 +130,8 @@ app.post("/api/auth/login", async (c) => {
   const db = getDb();
 
   const result = await db.execute(sql`
-    SELECT u.id, u.email, u.name, u.role, u.tenant_id, u.password_hash, t.name as tenant_name, t.slug as tenant_slug
+    SELECT u.id, u.email, u.name, u.role, u.tenant_id, u.password_hash, u.token_version,
+           t.name as tenant_name, t.slug as tenant_slug
     FROM users u
     JOIN tenants t ON t.id = u.tenant_id
     WHERE u.email = ${email}
@@ -140,6 +146,7 @@ app.post("/api/auth/login", async (c) => {
         role: string;
         tenant_id: string;
         password_hash: string;
+        token_version: number;
         tenant_name: string;
         tenant_slug: string;
       }
@@ -164,6 +171,7 @@ app.post("/api/auth/login", async (c) => {
     role: user.role,
     tenantId: user.tenant_id,
     tenantName: user.tenant_name,
+    v: Number(user.token_version ?? 0),
   });
 
   return c.json({
@@ -700,8 +708,10 @@ app.get("/api/plugins", (c) => {
   return c.json({ plugins: pluginManager.list().map((p) => ({ name: p.manifest.name, state: p.state })) });
 });
 
-/** Verify the bearer token. Called once per request by the auth middleware. */
-function actorFromRequest(c: AppContext): ActorContext | null {
+/** Verify the bearer token's signature and expiry. No database access. */
+function actorFromRequest(
+  c: AppContext,
+): { actor: ActorContext; tokenVersion: unknown } | null {
   const auth = c.req.header("Authorization");
   if (!auth?.startsWith("Bearer ")) return null;
 
@@ -709,10 +719,13 @@ function actorFromRequest(c: AppContext): ActorContext | null {
   if (!payload) return null;
 
   return {
-    id: payload.id,
-    type: "user",
-    tenantId: payload.tenantId,
-    role: payload.role,
+    actor: {
+      id: payload.id,
+      type: "user",
+      tenantId: payload.tenantId,
+      role: payload.role,
+    },
+    tokenVersion: payload.v,
   };
 }
 

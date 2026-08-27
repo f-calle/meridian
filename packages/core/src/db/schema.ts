@@ -7,6 +7,7 @@ import {
   boolean,
   foreignKey,
   index,
+  integer,
   unique,
 } from "drizzle-orm/pg-core";
 
@@ -37,6 +38,14 @@ export const users = pgTable(
     name: text("name").notNull(),
     role: text("role").notNull().default("admin"),
     passwordHash: text("password_hash").notNull(),
+    /**
+     * Bumped whenever every existing session for this user should stop working
+     * — a password change, a role change, an admin revoking access. Tokens
+     * carry the version they were signed with; a token whose version is behind
+     * is rejected. Tokens predating this column carry no version and read as 0,
+     * which is the default, so existing sessions survive the migration.
+     */
+    tokenVersion: integer("token_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

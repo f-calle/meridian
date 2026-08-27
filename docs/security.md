@@ -17,9 +17,24 @@ Failed logins are throttled per IP + email: 10 failures in 15 minutes returns a
 429 with `Retry-After`. A successful login clears the counter, so a user is never
 locked out by their own history.
 
-**Known gap:** tokens are stateless, so they stay valid until they expire.
-Changing a password or removing a user does not revoke tokens already issued.
-Closing this needs a token version on the user record, checked at verify time.
+Sessions can be revoked. Each user carries a `token_version`; tokens are stamped
+with the version current when they were signed, and a token whose version is
+behind is refused — as is any token for a user that no longer exists. The
+version is bumped on a password change (which therefore signs the user out
+everywhere, including the browser that made the change), on a role change (the
+old token still carries the old role, and the role is what the ACL reads), and
+implicitly on removal.
+
+The version is read from the database and cached for
+`MERIDIAN_SESSION_CACHE_MS` (default 15s), so a revocation lands within that
+window on every instance rather than instantly — the alternative is a primary
+key lookup on every request for a value that almost never changes. The instance
+that performs the revocation drops its own cache entry immediately.
+
+**Known gap:** the 15-second window above. Shorten it with
+`MERIDIAN_SESSION_CACHE_MS` if a deployment needs revocation to be tighter than
+that; setting it to 0 makes revocation immediate at the cost of one indexed
+lookup per request.
 
 ## Authorization
 
@@ -96,3 +111,5 @@ Odoo credentials.
   deployment reachable from the internet.
 - Secrets belong in the platform's environment configuration. A key that has
   been pasted into a chat, a terminal, or a commit should be rotated.
+- `MERIDIAN_SESSION_CACHE_MS` trades revocation latency against per-request
+  database load. The default of 15s suits most deployments.

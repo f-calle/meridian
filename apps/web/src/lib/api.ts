@@ -170,8 +170,12 @@ export const api = {
   deleteUser: (id: string) =>
     apiFetch<{ success: boolean }>(`/api/users/${id}`, { method: "DELETE" }),
 
+  /**
+   * Changing a password ends every session for the account, including this one,
+   * so the response asks the caller to sign in again.
+   */
   changePassword: (currentPassword: string, newPassword: string) =>
-    apiFetch<{ success: boolean }>("/api/auth/change-password", {
+    apiFetch<{ success: boolean; reauthenticate?: boolean }>("/api/auth/change-password", {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword }),
     }),

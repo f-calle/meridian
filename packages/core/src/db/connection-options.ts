@@ -5,15 +5,19 @@ import type { Options } from "postgres";
  *
  * `max` matters on hosted Postgres, where the connection cap is low and shared:
  * an unbounded pool per instance is how a deploy ends up unable to open a
- * connection at all. `onnotice` is silenced because every boot used to print a
- * wall of "relation already exists, skipping" notices that buried real errors.
+ * connection at all.
  */
 export function baseConnectionOptions(): Options<Record<string, never>> {
   return {
     max: Number(process.env.MERIDIAN_DB_POOL_MAX ?? 10),
     idle_timeout: Number(process.env.MERIDIAN_DB_IDLE_TIMEOUT_S ?? 30),
     connect_timeout: Number(process.env.MERIDIAN_DB_CONNECT_TIMEOUT_S ?? 10),
-    onnotice: () => {},
+    // Plain NOTICEs are chatter — every boot used to print a wall of "relation
+    // already exists, skipping" that buried anything real. Anything more severe
+    // still gets through, because a WARNING from Postgres is worth reading.
+    onnotice: (notice) => {
+      if (notice.severity !== "NOTICE") console.warn(`[postgres] ${notice.severity}: ${notice.message}`);
+    },
   };
 }
 
