@@ -117,17 +117,23 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
                           : "text"
                   }
                   value={(formData[field.name] as string | number) ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      ...formData,
-                      [field.name]:
-                        field.type === "number" || field.type === "currency"
-                          ? e.target.value === ""
-                            ? undefined
-                            : Number(e.target.value)
-                          : e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const isNumeric = field.type === "number" || field.type === "currency";
+                    const value = isNumeric
+                      ? e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value)
+                      : e.target.value;
+                    const next = { ...formData, [field.name]: value };
+                    // Keep the document total honest: editing tax or subtotal
+                    // by hand must recompute it, not just editing lines.
+                    if (field.name === "tax" || field.name === "subtotal") {
+                      const subtotal = Number(next.subtotal ?? 0) || 0;
+                      const tax = Number(next.tax ?? 0) || 0;
+                      next.total = Number((subtotal + tax).toFixed(2));
+                    }
+                    onChange(next);
+                  }}
                   required={field.required}
                 />
               )}

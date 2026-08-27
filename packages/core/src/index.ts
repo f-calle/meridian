@@ -2,7 +2,7 @@ export { defineEntity, field } from "./entity/define-entity.js";
 export { entityRegistry, registerEntities } from "./entity/registry.js";
 export { entityToJsonSchema, getEntityUiMeta } from "./entity/json-schema.js";
 export { validateEntityData, buildEntityZodSchema } from "./entity/validation.js";
-export { checkPermission, getEffectivePermissions, PermissionError } from "./acl/permissions.js";
+export { checkPermission, getEffectivePermissions, PermissionError, isPermissionError } from "./acl/permissions.js";
 export { eventBus, hookRegistry } from "./events/event-bus.js";
 export { pluginManager, PluginManager } from "./plugins/plugin-manager.js";
 export { entityService, EntityService, coerceFromDb } from "./services/entity-service.js";

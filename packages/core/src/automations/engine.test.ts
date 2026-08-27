@@ -114,3 +114,29 @@ describe("interpolate", () => {
     expect(interpolate("{{missing}}", ctx)).toBe("");
   });
 });
+
+describe("ruleMatches change semantics", () => {
+  const rule: AutomationRule = {
+    id: "r2",
+    name: "won deal",
+    entity: "deal",
+    event: "updated",
+    conditions: [{ field: "stage", op: "eq", value: "won" }],
+    actions: [],
+  };
+  const record = { title: "Acme", stage: "won", notes: "edited" };
+
+  it("does not re-fire when only unrelated fields actually changed", () => {
+    // Regression: `changes` used to be the whole update payload, so saving a
+    // full record from the detail page re-fired the rule on every edit.
+    expect(
+      ruleMatches(rule, "updated", { entityName: "deal", data: record, changes: { notes: "edited" } }),
+    ).toBe(false);
+  });
+
+  it("still fires when the condition field is among the real changes", () => {
+    expect(
+      ruleMatches(rule, "updated", { entityName: "deal", data: record, changes: { stage: "won" } }),
+    ).toBe(true);
+  });
+});

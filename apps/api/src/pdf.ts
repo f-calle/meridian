@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import type { Hono, Context } from "hono";
-import { entityService } from "@meridian/core";
+import { entityService, isPermissionError } from "@meridian/core";
 import type { ActorContext } from "@meridian/core";
 
 interface LineItem {
@@ -160,7 +160,7 @@ export function registerPdfRoutes(app: Hono, getActor: (c: Context) => ActorCont
       return c.body(new Uint8Array(pdf));
     } catch (err) {
       const message = (err as Error).message;
-      const status = message.includes("Permission") ? 403 : message.includes("not found") ? 404 : 400;
+      const status = isPermissionError(err) ? 403 : message.includes("not found") ? 404 : 400;
       return c.json({ error: message }, status);
     }
   });

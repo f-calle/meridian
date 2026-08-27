@@ -287,6 +287,9 @@ importers:
         specifier: ^1.3.2
         version: 1.3.2
     devDependencies:
+      '@meridian/entities':
+        specifier: workspace:*
+        version: link:../entities
       '@types/xmlrpc':
         specifier: ^1.3.9
         version: 1.3.10

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { defineEntity, field, registerEntities } from "@meridian/core";
+import { allEntities } from "@meridian/entities";
 import { parseCsv, importCsv } from "./csv-adapter.js";
 
 describe("parseCsv", () => {
@@ -31,7 +32,7 @@ describe("parseCsv", () => {
 
 describe("importCsv (dry run)", () => {
   beforeAll(() => {
-    registerEntities([
+    registerEntities([...allEntities,
       defineEntity({
         name: "csv_test_contact",
         label: "CSV Test Contact",
@@ -123,5 +124,17 @@ describe("Odoo mapping transforms", () => {
     expect(quote.fields.find((f) => f.meridianField === "companyId")!.transform!([42, "Acme"])).toBe(42);
     expect(invoice.filter).toEqual({ move_type: "out_invoice" });
     expect(product.fields.some((f) => f.meridianField === "sku")).toBe(true);
+  });
+});
+
+describe("Odoo boolean handling", () => {
+  it("keeps a real false for boolean target fields but drops Odoo's empty-false", async () => {
+    const { entityRegistry } = await import("@meridian/core");
+    const product = entityRegistry.get("product");
+    // Guards the archived-product bug: product.active defaults to true, so
+    // dropping Odoo's `active: false` imported inactive products as active.
+    expect(product?.fields.active?.type).toBe("boolean");
+    expect(product?.fields.active?.default).toBe(true);
+    expect(product?.fields.name?.type).not.toBe("boolean");
   });
 });

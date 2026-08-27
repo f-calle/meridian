@@ -101,11 +101,15 @@ export class EntityService {
     const diff = computeDiff(existing, validation.data);
     await this.writeAudit(actor, entityName, id, "update", diff);
     const merged = { ...existing, ...validation.data };
+    // `changes` must be the fields whose VALUE changed — not every field the
+    // caller sent. The detail page saves the whole record, so using the
+    // payload re-fired conditioned automations on unrelated edits.
+    const changed = Object.fromEntries(Object.keys(diff).map((k) => [k, merged[k]]));
     await hookRegistry.runLifecycle(entityName, "onUpdate", {
       entityName,
       recordId: id,
       data: merged,
-      changes: validation.data,
+      changes: changed,
       actor,
       tenantId: actor.tenantId,
     });
@@ -267,7 +271,7 @@ export class EntityService {
     sourceSystem: string,
     data: Record<string, unknown>,
     actor: ActorContext,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{ record: Record<string, unknown>; created: boolean }> {
     const entity = this.getEntity(entityName);
     if (!entity.externalId) throw new Error(`Entity "${entityName}" does not support external IDs`);
 
@@ -277,10 +281,17 @@ export class EntityService {
     );
 
     if (existing[0]) {
-      return this.update(entityName, String((existing[0] as Record<string, unknown>).id), data, actor);
+      const record = await this.update(
+        entityName,
+        String((existing[0] as Record<string, unknown>).id),
+        data,
+        actor,
+      );
+      return { record, created: false };
     }
 
-    return this.create(entityName, { ...data, externalId, sourceSystem }, actor);
+    const record = await this.create(entityName, { ...data, externalId, sourceSystem }, actor);
+    return { record, created: true };
   }
 
   private getEntity(name: string): EntityDefinition {

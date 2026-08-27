@@ -185,8 +185,15 @@ export async function importCsv(
         ? row[options.externalIdColumn]?.trim()
         : undefined;
       if (canUpsert && externalId) {
-        await entityService.upsertByExternalId(options.entity, externalId, sourceSystem, data, actor);
-        result.created++;
+        const { created } = await entityService.upsertByExternalId(
+          options.entity,
+          externalId,
+          sourceSystem,
+          data,
+          actor,
+        );
+        if (created) result.created++;
+        else result.updated++;
       } else {
         await entityService.create(options.entity, data, actor);
         result.created++;

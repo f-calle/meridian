@@ -16,6 +16,7 @@ import {
   verifyToken,
   startAutomationEngine,
   checkPermission,
+  isPermissionError,
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
@@ -229,7 +230,7 @@ for (const action of crudActions) {
       }
     } catch (err) {
       const message = (err as Error).message;
-      const status = message.includes("Permission") ? 403 : message.includes("not found") ? 404 : 400;
+      const status = isPermissionError(err) ? 403 : message.includes("not found") ? 404 : 400;
       return c.json({ error: message }, status);
     }
   });
@@ -274,7 +275,7 @@ app.get("/api/:entity/audit/:id", async (c) => {
     return c.json({ entries });
   } catch (err) {
     const message = (err as Error).message;
-    const status = message.includes("Permission") || message.includes("cannot") ? 403 : 400;
+    const status = isPermissionError(err) ? 403 : 400;
     return c.json({ error: message }, status);
   }
 });
@@ -395,7 +396,7 @@ app.get("/api/:entity/aggregate", async (c) => {
     return c.json({ rows });
   } catch (err) {
     const message = (err as Error).message;
-    const status = message.includes("Permission") ? 403 : 400;
+    const status = isPermissionError(err) ? 403 : 400;
     return c.json({ error: message }, status);
   }
 });
@@ -455,7 +456,7 @@ app.post("/api/quote/:id/convert", async (c) => {
     return c.json({ invoice, created: true }, 201);
   } catch (err) {
     const message = (err as Error).message;
-    const status = message.includes("Permission")
+    const status = isPermissionError(err)
       ? 403
       : message.includes("not found")
         ? 404

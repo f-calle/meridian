@@ -9,6 +9,11 @@ export class PermissionError extends Error {
   }
 }
 
+/** True for ACL denials, regardless of message wording or realm boundaries. */
+export function isPermissionError(err: unknown): boolean {
+  return err instanceof PermissionError || (err as Error)?.name === "PermissionError";
+}
+
 export function checkPermission(
   entity: EntityDefinition,
   actor: ActorContext,

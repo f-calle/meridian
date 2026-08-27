@@ -1,6 +1,6 @@
 import xmlrpc from "xmlrpc";
 import type { ActorContext } from "@meridian/core";
-import { entityService } from "@meridian/core";
+import { entityService, entityRegistry } from "@meridian/core";
 import type { OdooConfig, ModelMapping, ImportResult, MigrationReport } from "./index.js";
 import { ODOO_MODEL_MAPPINGS, ODOO_IMPORT_LIMITATIONS } from "./index.js";
 
@@ -130,14 +130,15 @@ export class OdooAdapter {
             continue;
           }
 
-          await entityService.upsertByExternalId(
+          const { created } = await entityService.upsertByExternalId(
             mapping.meridianEntity,
             externalId,
             "odoo",
             data,
             actor,
           );
-          result.created++;
+          if (created) result.created++;
+          else result.updated++;
         } catch (err) {
           result.errors.push(`Record ${record.id}: ${(err as Error).message}`);
           result.skipped++;
@@ -208,10 +209,17 @@ export class OdooAdapter {
     mapping: ModelMapping,
   ): Record<string, unknown> {
     const data: Record<string, unknown> = {};
+    const target = entityRegistry.get(mapping.meridianEntity);
 
     for (const fieldMapping of mapping.fields) {
       const rawValue = record[fieldMapping.odooField];
-      if (rawValue === undefined || rawValue === false) continue;
+      if (rawValue === undefined) continue;
+      // Odoo uses `false` both as "empty" (for text/relation fields) and as a
+      // genuine boolean. Dropping it wholesale imported archived records as
+      // active — keep it when the target field really is a boolean.
+      if (rawValue === false && target?.fields[fieldMapping.meridianField]?.type !== "boolean") {
+        continue;
+      }
       data[fieldMapping.meridianField] = fieldMapping.transform
         ? fieldMapping.transform(rawValue)
         : rawValue;
