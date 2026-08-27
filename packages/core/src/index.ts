@@ -18,7 +18,7 @@ export {
 } from "./automations/engine.js";
 export type { AutomationRule, AutomationCondition, AutomationAction } from "./automations/engine.js";
 export { getDb, closeDb } from "./db/client.js";
-export { syncEntityTables } from "./db/entity-store.js";
+export { syncEntityTables, expectedColumns } from "./db/entity-store.js";
 export { runMigrations, seedDemoTenant } from "./db/bootstrap.js";
 export { closeSql } from "./db/raw-sql.js";
 export type * from "./types.js";

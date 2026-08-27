@@ -34,6 +34,48 @@ function toSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
+/** SQL type for a field, or null for types with no column representation. */
+export function sqlTypeFor(type: import("../types.js").FieldType): string | null {
+  switch (type) {
+    case "string":
+    case "email":
+    case "phone":
+    case "text":
+    case "select":
+    case "relation":
+      return "TEXT";
+    case "number":
+      return "INTEGER";
+    case "currency":
+      return "NUMERIC(15,2)";
+    case "boolean":
+      return "BOOLEAN";
+    case "date":
+    case "datetime":
+      return "TIMESTAMPTZ";
+    case "multiselect":
+    case "json":
+      return "JSONB";
+    default:
+      return null;
+  }
+}
+
+/** Every column an entity expects, as `name TYPE` pairs. */
+export function expectedColumns(
+  entity: import("../types.js").EntityDefinition,
+): { name: string; type: string }[] {
+  const columns: { name: string; type: string }[] = [];
+  if (entity.externalId) {
+    columns.push({ name: "external_id", type: "TEXT" }, { name: "source_system", type: "TEXT" });
+  }
+  for (const [fieldName, fieldDef] of Object.entries(entity.fields)) {
+    const type = sqlTypeFor(fieldDef.type);
+    if (type) columns.push({ name: toSnakeCase(fieldName), type });
+  }
+  return columns;
+}
+
 async function createTableIfNotExists(
   db: ReturnType<typeof getDb>,
   tableName: string,
@@ -44,42 +86,8 @@ async function createTableIfNotExists(
     "tenant_id UUID NOT NULL",
     "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
     "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ...expectedColumns(entity).map((c) => `${c.name} ${c.type}`),
   ];
-
-  if (entity.externalId) {
-    columns.push("external_id TEXT", "source_system TEXT");
-  }
-
-  for (const [fieldName, fieldDef] of Object.entries(entity.fields)) {
-    const col = toSnakeCase(fieldName);
-    switch (fieldDef.type) {
-      case "string":
-      case "email":
-      case "phone":
-      case "text":
-      case "select":
-      case "relation":
-        columns.push(`${col} TEXT`);
-        break;
-      case "number":
-        columns.push(`${col} INTEGER`);
-        break;
-      case "currency":
-        columns.push(`${col} NUMERIC(15,2)`);
-        break;
-      case "boolean":
-        columns.push(`${col} BOOLEAN`);
-        break;
-      case "date":
-      case "datetime":
-        columns.push(`${col} TIMESTAMPTZ`);
-        break;
-      case "multiselect":
-      case "json":
-        columns.push(`${col} JSONB`);
-        break;
-    }
-  }
 
   const { sql } = await import("drizzle-orm");
 
@@ -88,6 +96,15 @@ async function createTableIfNotExists(
       ${columns.join(",\n      ")}
     )
   `));
+
+  // CREATE TABLE IF NOT EXISTS does nothing for a table that already exists,
+  // so adding a field to a shipped entity would otherwise never get a column
+  // (and any index over it would fail at boot). Reconcile every run.
+  for (const column of expectedColumns(entity)) {
+    await db.execute(
+      sql.raw(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}`),
+    );
+  }
 
   await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS ${tableName}_tenant_idx ON ${tableName}(tenant_id)
