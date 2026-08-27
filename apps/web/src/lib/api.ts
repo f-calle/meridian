@@ -112,4 +112,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ config, dryRun }),
     }),
+
+  auditLog: (entity: string, id: string) =>
+    apiFetch<{ entries: AuditEntry[] }>(`/api/${entity}/audit/${id}`),
+
+  bulkDelete: (entity: string, ids: string[]) =>
+    apiFetch<{ deleted: string[]; failed: { id: string; error: string }[]; success: boolean }>(
+      `/api/${entity}/bulk-delete`,
+      { method: "POST", body: JSON.stringify({ ids }) },
+    ),
 };
+
+export interface AuditEntry {
+  id: string;
+  action: "create" | "update" | "delete";
+  actorId: string;
+  actorType: string;
+  diff: Record<string, unknown> | null;
+  createdAt: string;
+}

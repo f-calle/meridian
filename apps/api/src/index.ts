@@ -220,6 +220,73 @@ for (const action of crudActions) {
   });
 }
 
+// Audit log for a record
+app.get("/api/:entity/audit/:id", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  const entityName = c.req.param("entity")!;
+  const recordId = c.req.param("id")!;
+  if (!entityRegistry.get(entityName)) {
+    return c.json({ error: "Entity not found" }, 404);
+  }
+
+  const db = getDb();
+  const result = await db.execute(sql`
+    SELECT id, action, actor_id, actor_type, diff, created_at
+    FROM audit_log
+    WHERE tenant_id = ${actor.tenantId}
+      AND entity_name = ${entityName}
+      AND record_id = ${recordId}::uuid
+    ORDER BY created_at DESC
+    LIMIT 100
+  `);
+
+  const entries = (result as unknown as Record<string, unknown>[]).map((row) => ({
+    id: row.id,
+    action: row.action,
+    actorId: row.actor_id,
+    actorType: row.actor_type,
+    diff: row.diff,
+    createdAt: row.created_at,
+  }));
+
+  return c.json({ entries });
+});
+
+// Bulk delete records
+app.post("/api/:entity/bulk-delete", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  const entityName = c.req.param("entity")!;
+  if (!entityRegistry.get(entityName)) {
+    return c.json({ error: "Entity not found" }, 404);
+  }
+
+  const { ids } = await c.req.json<{ ids: string[] }>();
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json({ error: "ids must be a non-empty array" }, 400);
+  }
+  if (ids.length > 100) {
+    return c.json({ error: "Cannot delete more than 100 records at once" }, 400);
+  }
+
+  const deleted: string[] = [];
+  const failed: { id: string; error: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      await entityService.delete(entityName, id, actor);
+      deleted.push(id);
+    } catch (err) {
+      failed.push({ id, error: (err as Error).message });
+    }
+  }
+
+  return c.json({ deleted, failed, success: failed.length === 0 });
+});
+
 // AI chat
 app.post("/api/ai/chat", async (c) => {
   const actor = getActor(c);

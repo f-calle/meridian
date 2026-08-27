@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "note": "Populate after Superdesign login and first draft creation. See CANVAS_SETUP.md.",
+  "targets": {
+    "/dashboard": {
+      "status": "pending_auth",
+      "projectId": null,
+      "activeDraftId": null
+    },
+    "/entities/[entity]": {
+      "status": "pending_auth",
+      "projectId": null,
+      "activeDraftId": null
+    },
+    "/entities/[entity]/[id]": {
+      "status": "pending_auth",
+      "projectId": null,
+      "activeDraftId": null
+    },
+    "/": {
+      "status": "pending_auth",
+      "projectId": null,
+      "activeDraftId": null
+    }
+  }
+}
