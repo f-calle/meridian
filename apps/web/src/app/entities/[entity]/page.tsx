@@ -331,10 +331,15 @@ export default function EntityListPage() {
                 : `No ${schema?.pluralLabel?.toLowerCase() ?? "records"} yet`}
             </p>
             {!urlSearch && (
-              <Button onClick={() => setShowForm(true)} className="touch-manipulation">
-                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-                Create Your First {schema?.label ?? "Record"}
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button onClick={() => setShowForm(true)} className="touch-manipulation">
+                  <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+                  Create your first {schema?.label?.toLowerCase() ?? "record"}
+                </Button>
+                <Button variant="outline" asChild className="touch-manipulation">
+                  <Link href="/migration">Import from Odoo or CSV</Link>
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

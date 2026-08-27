@@ -25,6 +25,8 @@ const statItems = [
   { key: "contact", label: "Contacts", href: "/entities/contact" },
   { key: "company", label: "Companies", href: "/entities/company" },
   { key: "deal", label: "Deals", href: "/entities/deal" },
+  { key: "quote", label: "Quotes", href: "/entities/quote" },
+  { key: "invoice", label: "Invoices", href: "/entities/invoice" },
   { key: "project", label: "Projects", href: "/entities/project" },
   { key: "task", label: "Tasks", href: "/entities/task" },
 ];
@@ -246,7 +248,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="col-span-12">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             {statItems.map((item) => (
               <Link key={item.key} href={item.href} className="group touch-manipulation">
                 <Card className="glass-card h-full rounded-xl transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-primary/40 motion-reduce:transform-none">
