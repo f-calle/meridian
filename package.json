@@ -10,7 +10,10 @@
     "typecheck": "turbo run typecheck",
     "db:migrate": "set -a && . ./.env && set +a && tsx scripts/migrate.ts",
     "db:seed": "set -a && . ./.env && set +a && tsx scripts/seed.ts",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "db:generate": "tsx scripts/generate-schema.ts && pnpm --filter @meridian/core exec drizzle-kit generate",
+    "db:check": "tsx scripts/generate-schema.ts --check",
+    "db:migrate:ci": "tsx scripts/migrate.ts"
   },
   "devDependencies": {
     "@meridian/core": "workspace:*",

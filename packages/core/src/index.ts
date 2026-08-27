@@ -18,7 +18,17 @@ export {
 } from "./automations/engine.js";
 export type { AutomationRule, AutomationCondition, AutomationAction } from "./automations/engine.js";
 export { getDb, closeDb } from "./db/client.js";
-export { syncEntityTables, expectedColumns } from "./db/entity-store.js";
+export { expectedColumns, sqlTypeFor } from "./db/entity-store.js";
+export { renderEntitySchema, drizzleColumnFor, tableConstName } from "./db/schema-codegen.js";
+export { toColumnName } from "./db/naming.js";
 export { runMigrations, seedDemoTenant } from "./db/bootstrap.js";
+export { applyMigrations, migrationsFolder } from "./db/migrator.js";
+export {
+  describeSchemaDrift,
+  formatSchemaDrift,
+  assertSchemaMatchesRegistry,
+  isDriftFree,
+} from "./db/schema-check.js";
+export type { SchemaDrift } from "./db/schema-check.js";
 export { closeSql } from "./db/raw-sql.js";
 export type * from "./types.js";

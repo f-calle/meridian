@@ -1,6 +1,12 @@
+/**
+ * Entity tables are created by versioned migrations (packages/core/drizzle),
+ * not at runtime. What is left here is the naming and column-shape knowledge
+ * two other places need: the drizzle schema codegen, and the boot-time drift
+ * check that compares the live database against the registry.
+ */
 import { entityRegistry } from "../entity/registry.js";
 import { registerEntityTable } from "./schema.js";
-import { getDb } from "./client.js";
+import { toColumnName } from "./naming.js";
 
 const ensured = new Set<string>();
 
@@ -19,19 +25,6 @@ export function getEntityTable(entityName: string): string {
     throw new Error(`No table registered for entity: ${entityName}`);
   }
   return entityName;
-}
-
-export async function syncEntityTables(): Promise<void> {
-  ensureEntityTables();
-  const db = getDb();
-
-  for (const entity of entityRegistry.list()) {
-    await createTableIfNotExists(db, entity.name, entity);
-  }
-}
-
-function toSnakeCase(str: string): string {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 /** SQL type for a field, or null for types with no column representation. */
@@ -71,50 +64,7 @@ export function expectedColumns(
   }
   for (const [fieldName, fieldDef] of Object.entries(entity.fields)) {
     const type = sqlTypeFor(fieldDef.type);
-    if (type) columns.push({ name: toSnakeCase(fieldName), type });
+    if (type) columns.push({ name: toColumnName(fieldName), type });
   }
   return columns;
-}
-
-async function createTableIfNotExists(
-  db: ReturnType<typeof getDb>,
-  tableName: string,
-  entity: import("../types.js").EntityDefinition,
-): Promise<void> {
-  const columns: string[] = [
-    "id UUID PRIMARY KEY DEFAULT gen_random_uuid()",
-    "tenant_id UUID NOT NULL",
-    "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
-    "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
-    ...expectedColumns(entity).map((c) => `${c.name} ${c.type}`),
-  ];
-
-  const { sql } = await import("drizzle-orm");
-
-  await db.execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS ${tableName} (
-      ${columns.join(",\n      ")}
-    )
-  `));
-
-  // CREATE TABLE IF NOT EXISTS does nothing for a table that already exists,
-  // so adding a field to a shipped entity would otherwise never get a column
-  // (and any index over it would fail at boot). Reconcile every run.
-  for (const column of expectedColumns(entity)) {
-    await db.execute(
-      sql.raw(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}`),
-    );
-  }
-
-  await db.execute(sql.raw(`
-    CREATE INDEX IF NOT EXISTS ${tableName}_tenant_idx ON ${tableName}(tenant_id)
-  `));
-
-  if (entity.externalId) {
-    await db.execute(sql.raw(`
-      CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_external_idx
-      ON ${tableName}(tenant_id, external_id, source_system)
-      WHERE external_id IS NOT NULL
-    `));
-  }
 }

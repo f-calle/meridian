@@ -5,14 +5,25 @@ import {
   timestamp,
   jsonb,
   boolean,
+  foreignKey,
   index,
-  uniqueIndex,
+  unique,
 } from "drizzle-orm/pg-core";
+
+/**
+ * System tables — the ones that exist independently of any entity definition.
+ * Entity tables are generated into ./entity-schema.generated.ts.
+ *
+ * Constraint and index names here are pinned to the names the live databases
+ * already carry, so migration 0000 adopts an existing deployment as a no-op
+ * instead of trying to create a second copy of every uniqueness rule under a
+ * drizzle-flavoured name.
+ */
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull().unique("tenants_slug_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -21,7 +32,7 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id").notNull(),
     email: text("email").notNull(),
     name: text("name").notNull(),
     role: text("role").notNull().default("admin"),
@@ -30,7 +41,12 @@ export const users = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("users_tenant_email_idx").on(table.tenantId, table.email),
+    foreignKey({
+      columns: [table.tenantId],
+      foreignColumns: [tenants.id],
+      name: "users_tenant_id_fkey",
+    }),
+    unique("users_tenant_id_email_key").on(table.tenantId, table.email),
     index("users_tenant_idx").on(table.tenantId),
   ],
 );
@@ -39,7 +55,7 @@ export const agentKeys = pgTable(
   "agent_keys",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id").notNull(),
     name: text("name").notNull(),
     keyHash: text("key_hash").notNull(),
     role: text("role").notNull().default("agent"),
@@ -47,7 +63,14 @@ export const agentKeys = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("agent_keys_tenant_idx").on(table.tenantId)],
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId],
+      foreignColumns: [tenants.id],
+      name: "agent_keys_tenant_id_fkey",
+    }),
+    index("agent_keys_tenant_idx").on(table.tenantId),
+  ],
 );
 
 export const auditLog = pgTable(
@@ -73,14 +96,21 @@ export const plugins = pgTable(
   "plugins",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    tenantId: uuid("tenant_id").notNull(),
     name: text("name").notNull(),
     version: text("version").notNull(),
     state: text("state").notNull().default("installed"),
     manifest: jsonb("manifest").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("plugins_tenant_name_idx").on(table.tenantId, table.name)],
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId],
+      foreignColumns: [tenants.id],
+      name: "plugins_tenant_id_fkey",
+    }),
+    unique("plugins_tenant_id_name_key").on(table.tenantId, table.name),
+  ],
 );
 
 export const migrationJobs = pgTable(
@@ -98,7 +128,10 @@ export const migrationJobs = pgTable(
   (table) => [index("migration_jobs_tenant_idx").on(table.tenantId)],
 );
 
-// Entity tables are created dynamically via syncEntityTables SQL
+// Entity tables are declared in ./entity-schema.generated.ts, which
+// drizzle.config.ts loads alongside this file. They are deliberately not
+// re-exported from here: drizzle-kit resolves schema modules as CJS and
+// chokes on the ESM ".js" specifier a re-export would need.
 export const entityTables: Record<string, unknown> = {};
 
 export function registerEntityTable(entityName: string): void {

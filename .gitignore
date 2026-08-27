@@ -7,6 +7,5 @@ dist/
 *.log
 .DS_Store
 coverage/
-drizzle/
 *.tsbuildinfo
 .ccr-ca.crt

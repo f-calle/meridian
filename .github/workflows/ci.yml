@@ -12,6 +12,21 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meridian_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +47,17 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      # Fails when an entity definition changed without regenerating the drizzle
+      # schema — which is the same thing as shipping a schema change with no
+      # migration behind it.
+      - name: Schema is in step with the entity definitions
+        run: pnpm db:check
+
+      - name: Migrations apply to a clean database
+        run: pnpm db:migrate:ci
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/meridian_ci
 
       - name: Test
         run: pnpm test

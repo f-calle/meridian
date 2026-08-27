@@ -75,7 +75,9 @@ See [docs/deploy-railway.md](docs/deploy-railway.md) for step-by-step instructio
 
 ## Adding Entities
 
-Define in `packages/entities/`, register in index, run migrations:
+Define in `packages/entities/`, register it in the index, then generate a
+migration with `pnpm db:generate` and commit what it writes. Tables are never
+created or altered at runtime — see [docs/schema-migrations.md](docs/schema-migrations.md).
 
 ```typescript
 import { defineEntity, field } from "@meridian/core";
@@ -87,6 +89,11 @@ export const MyEntity = defineEntity({
   permissions: { admin: { create: true, read: true, update: true, delete: true } },
 });
 ```
+
+Changing an existing entity works the same way: edit the definition, run
+`pnpm db:generate`, review the SQL, commit it. CI fails a pull request whose
+entity definitions have drifted from the committed schema, and the API refuses
+to start against a database that does not match.
 
 ## Automations
 

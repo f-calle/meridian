@@ -8,10 +8,7 @@ import { getDb } from "../db/client.js";
 import { auditLog } from "../db/schema.js";
 import { getSql } from "../db/raw-sql.js";
 import { ensureEntityTables } from "../db/entity-store.js";
-
-function toSnakeCase(str: string): string {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-}
+import { toColumnName } from "../db/naming.js";
 
 export class EntityService {
   constructor() {
@@ -36,7 +33,7 @@ export class EntityService {
     // them from validation.data — carry them across from the raw input or
     // idempotent re-imports would silently duplicate.
     const dbData = mapFieldsToDb(entity, withExternalIdentity(validation.data, data));
-    const columns = ["id", "tenant_id", ...Object.keys(dbData).map(toSnakeCase)];
+    const columns = ["id", "tenant_id", ...Object.keys(dbData).map(toColumnName)];
     const values = [id, actor.tenantId, ...Object.values(dbData)];
     const placeholders = values.map((_, i) => `$${i + 1}`).join(", ");
 
@@ -91,7 +88,7 @@ export class EntityService {
     });
     const entries = Object.entries(dbData);
     if (entries.length > 0) {
-      const setClauses = entries.map(([k], i) => `${toSnakeCase(k)} = $${i + 3}`).join(", ");
+      const setClauses = entries.map(([k], i) => `${toColumnName(k)} = $${i + 3}`).join(", ");
       await getSql().unsafe(
         `UPDATE ${entityName} SET ${setClauses}, updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
         [id, actor.tenantId, ...entries.map(([, v]) => v)] as (string | number | boolean | null)[],
@@ -155,7 +152,7 @@ export class EntityService {
     if (query.search) {
       const searchFields = Object.entries(entity.fields)
         .filter(([, def]) => def.searchable)
-        .map(([name]) => `${toSnakeCase(name)} ILIKE $${params.length + 1}`);
+        .map(([name]) => `${toColumnName(name)} ILIKE $${params.length + 1}`);
       if (searchFields.length > 0) {
         whereClause += ` AND (${searchFields.join(" OR ")})`;
         params.push(`%${query.search}%`);
@@ -225,7 +222,7 @@ export class EntityService {
       if (!def || (def.type !== "number" && def.type !== "currency")) {
         throw new Error(`Field "${options.metricField}" is not numeric`);
       }
-      metricExpr = `${metric.toUpperCase()}(${toSnakeCase(options.metricField)})::float`;
+      metricExpr = `${metric.toUpperCase()}(${toColumnName(options.metricField)})::float`;
     }
 
     let whereClause = "tenant_id = $1";
@@ -334,8 +331,8 @@ function withExternalIdentity(
 
 /** Resolve a user-supplied field name to a safe column name, or null if unknown. */
 function resolveColumn(entity: EntityDefinition, fieldName: string): string | null {
-  if (entity.fields[fieldName]) return toSnakeCase(fieldName);
-  const snake = toSnakeCase(fieldName);
+  if (entity.fields[fieldName]) return toColumnName(fieldName);
+  const snake = toColumnName(fieldName);
   if (SYSTEM_COLUMNS.has(snake)) return snake;
   return null;
 }
