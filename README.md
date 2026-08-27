@@ -8,7 +8,7 @@
 - **Projects**: Projects, tasks, time entries, milestones
 - **AI Assistant**: Natural language CRUD, aggregations ("pipeline value by stage"), confirmed deletes, daily briefings (`GET /api/ai/briefing`)
 - **Automations**: Event-driven rules — "when a deal is updated to won, create a kickoff project". Conditions + actions (`set_field`, `create_record`, `webhook`) with `{{field}}` templating, managed like any other entity at `/entities/automation`
-- **Migration**: Import from Odoo via XML-RPC (with relation resolution), or CSV imports with presets for ERPNext, Dolibarr, and generic exports
+- **Migration**: Import from Odoo via XML-RPC — contacts, companies, deals, projects, tasks, products, quotes and invoices *with line-level detail*, plus chatter history as record comments — or CSV imports with AI column mapping for any other system
 - **Plugin System**: Extensible architecture with lifecycle hooks
 - **Multi-tenant**: Row-level isolation with role-based ACL
 - **Secure auth**: HMAC-signed session tokens (`AUTH_SECRET`), scrypt password hashing
@@ -63,6 +63,7 @@ See [`.env.example`](.env.example) for the full annotated list.
 | `DATABASE_URL` | PostgreSQL connection |
 | `REDIS_URL` | Redis for queues/cache |
 | `AUTH_SECRET` | Signs session tokens — required in production |
+| `MERIDIAN_LLM_MODEL_*` | Per-task model overrides (briefing/chat/automation/mapping) |
 | `API_URL` | Internal API address |
 | `MCP_URL` | Internal MCP server (never public) |
 | `ANTHROPIC_API_KEY` | AI assistant (optional) |

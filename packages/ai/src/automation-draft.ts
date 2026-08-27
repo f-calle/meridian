@@ -176,7 +176,7 @@ export function summarizeDraft(draft: Omit<AutomationDraft, "summary">): string 
  */
 export async function draftAutomation(prompt: string, model?: string): Promise<AutomationDraft> {
   const response = await getAnthropicClient().messages.create({
-    model: resolveModel(model),
+    model: resolveModel(model, "automation-draft"),
     max_tokens: 16000,
     system: `You convert plain-English business rules into Meridian automation rules.
 Call the save_automation_rule tool exactly once with the drafted rule.

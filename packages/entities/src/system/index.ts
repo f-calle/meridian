@@ -40,6 +40,7 @@ export const CommentEntity = defineEntity({
   name: "comment",
   label: "Comment",
   pluralLabel: "Comments",
+  externalId: true,
   fields: {
     relatedEntity: field.string({ required: true, label: "Related Entity" }),
     relatedId: field.string({ required: true, label: "Related Record" }),

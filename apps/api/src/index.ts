@@ -407,7 +407,9 @@ app.get("/api/ai/briefing", async (c) => {
   if (!actor) return c.json({ error: "Unauthorized" }, 401);
 
   try {
-    const briefing = await generateBriefing(actor);
+    const briefing = await generateBriefing(actor, undefined, {
+      refresh: c.req.query("refresh") === "true",
+    });
     return c.json(briefing);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);

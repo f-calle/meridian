@@ -138,3 +138,15 @@ describe("Odoo boolean handling", () => {
     expect(product?.fields.name?.type).not.toBe("boolean");
   });
 });
+
+describe("stripHtml", () => {
+  it("turns Odoo chatter HTML into readable plain text", async () => {
+    const { stripHtml } = await import("./odoo-adapter.js");
+    expect(stripHtml("<p>Called the client.</p><p>They want a revised quote.</p>")).toBe(
+      "Called the client.\n\nThey want a revised quote.",
+    );
+    expect(stripHtml("Line one<br/>Line two")).toBe("Line one\nLine two");
+    expect(stripHtml("<p>Tom &amp; Jerry said &quot;yes&quot;</p>")).toBe('Tom & Jerry said "yes"');
+    expect(stripHtml("<p><br></p>")).toBe("");
+  });
+});

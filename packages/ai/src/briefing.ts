@@ -15,6 +15,21 @@ export interface Briefing {
   generatedAt: string;
   data: BriefingData;
   summary: string;
+  /** True when served from cache rather than regenerated */
+  cached?: boolean;
+}
+
+/**
+ * Briefings change on the scale of hours, not seconds, but the dashboard asks
+ * for one on every load. Cache per tenant so only the first visit pays for the
+ * model call. TTL is deliberately short so a day's work still shows up.
+ */
+const CACHE_TTL_MS = Number(process.env.MERIDIAN_BRIEFING_TTL_MS ?? 10 * 60 * 1000);
+const cache = new Map<string, { expires: number; briefing: Briefing }>();
+
+export function clearBriefingCache(tenantId?: string): void {
+  if (tenantId) cache.delete(tenantId);
+  else cache.clear();
 }
 
 async function collectBriefingData(actor: ActorContext): Promise<BriefingData> {
@@ -80,7 +95,16 @@ function fallbackSummary(data: BriefingData): string {
  * work, and open tasks. Uses the LLM for a narrative summary when an API
  * key is configured, and a deterministic summary otherwise.
  */
-export async function generateBriefing(actor: ActorContext, model?: string): Promise<Briefing> {
+export async function generateBriefing(
+  actor: ActorContext,
+  model?: string,
+  options: { refresh?: boolean } = {},
+): Promise<Briefing> {
+  if (!options.refresh) {
+    const hit = cache.get(actor.tenantId);
+    if (hit && hit.expires > Date.now()) return { ...hit.briefing, cached: true };
+  }
+
   const data = await collectBriefingData(actor);
 
   let summary = fallbackSummary(data);
@@ -88,8 +112,8 @@ export async function generateBriefing(actor: ActorContext, model?: string): Pro
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const response = await getAnthropicClient().messages.create({
-        model: resolveModel(model),
-        max_tokens: 1024,
+        model: resolveModel(model, "briefing"),
+        max_tokens: 400,
         system:
           "You write short, actionable morning briefings for a business owner. " +
           "3-5 sentences. Lead with what needs attention today. Use plain language, no headers.",
@@ -104,5 +128,7 @@ export async function generateBriefing(actor: ActorContext, model?: string): Pro
     }
   }
 
-  return { generatedAt: new Date().toISOString(), data, summary };
+  const briefing: Briefing = { generatedAt: new Date().toISOString(), data, summary };
+  cache.set(actor.tenantId, { expires: Date.now() + CACHE_TTL_MS, briefing });
+  return briefing;
 }

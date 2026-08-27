@@ -31,7 +31,7 @@ export class AgentOrchestrator {
 
   constructor(actor: ActorContext, model?: string) {
     this.actor = actor;
-    this.model = resolveModel(model);
+    this.model = resolveModel(model, "chat");
   }
 
   async chat(message: string, history: { role: "user" | "assistant"; content: string }[] = []) {

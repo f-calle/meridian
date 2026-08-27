@@ -52,7 +52,7 @@ export async function draftCsvMapping(
   model?: string,
 ): Promise<CsvMappingDraft> {
   const client = getAnthropicClient();
-  const resolvedModel = resolveModel(model);
+  const resolvedModel = resolveModel(model, "csv-mapping");
   const sample = sampleRows
     .slice(0, 3)
     .map((row) => headers.map((h) => `${h}=${JSON.stringify(row[h] ?? "")}`).join(", "))

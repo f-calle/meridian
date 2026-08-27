@@ -171,8 +171,8 @@ function mapOdooInvoiceStatus(paymentState: unknown): string {
 }
 
 export const ODOO_IMPORT_LIMITATIONS = [
-  "Invoice and quote line items are imported as document totals only in this version — line-level detail stays in Odoo.",
-  "Chatter message history and attachments are not imported yet.",
+  "File attachments stay in Odoo — chatter text is imported, the files it references are not.",
+  "Accounting entries (journals, taxes, payments) are out of scope; invoices arrive as documents with their line items and totals.",
 ];
 
 function mapOdooStage(stage: unknown): string {
