@@ -1,8 +1,6 @@
-import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { z } from "zod";
 import { entityRegistry } from "@meridian/core";
 import type { AutomationCondition, AutomationAction } from "@meridian/core";
+import { getAnthropicClient, resolveModel } from "./client.js";
 
 export interface AutomationDraft {
   name: string;
@@ -33,38 +31,81 @@ function entityCatalog(): string {
     .join("\n");
 }
 
-function buildSchema() {
-  const entityNames = entityRegistry.list().map((e) => e.name) as [string, ...string[]];
-  return z.object({
-    name: z.string().describe("Short human-readable rule name"),
-    entity: z.enum(entityNames).describe("Entity whose events trigger the rule"),
-    event: z.enum(["created", "updated", "deleted"]),
-    conditions: z.array(
-      z.object({
-        field: z.string(),
-        op: z.enum(CONDITION_OPS),
-        value: z.union([z.string(), z.number(), z.boolean()]).optional(),
-      }),
-    ),
-    actions: z.array(
-      z.union([
-        z.object({
-          type: z.literal("set_field"),
-          field: z.string(),
-          value: z.union([z.string(), z.number(), z.boolean()]),
-        }),
-        z.object({
-          type: z.literal("create_record"),
-          entity: z.enum(entityNames),
-          data: z.record(z.union([z.string(), z.number(), z.boolean()])),
-        }),
-        z.object({
-          type: z.literal("webhook"),
-          url: z.string().url(),
-        }),
-      ]),
-    ),
-  });
+/** Strict JSON Schema for the rule tool — guarantees a validating tool_use input. */
+function buildRuleSchema() {
+  const entityNames = entityRegistry.list().map((e) => e.name);
+  const scalar = { type: ["string", "number", "boolean"] };
+  return {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Short human-readable rule name" },
+      entity: { type: "string", enum: entityNames, description: "Entity whose events trigger the rule" },
+      event: { type: "string", enum: ["created", "updated", "deleted"] },
+      conditions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            field: { type: "string" },
+            op: { type: "string", enum: [...CONDITION_OPS] },
+            value: scalar,
+          },
+          required: ["field", "op"],
+          additionalProperties: false,
+        },
+      },
+      actions: {
+        type: "array",
+        items: {
+          anyOf: [
+            {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["set_field"] },
+                field: { type: "string" },
+                value: scalar,
+              },
+              required: ["type", "field", "value"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["create_record"] },
+                entity: { type: "string", enum: entityNames },
+                data: {
+                  type: "array",
+                  description: "Field values for the new record, as field/value pairs",
+                  items: {
+                    type: "object",
+                    properties: {
+                      field: { type: "string" },
+                      value: scalar,
+                    },
+                    required: ["field", "value"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["type", "entity", "data"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["webhook"] },
+                url: { type: "string" },
+              },
+              required: ["type", "url"],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
+    },
+    required: ["name", "entity", "event", "conditions", "actions"],
+    additionalProperties: false,
+  } as const;
 }
 
 /** Validate the model output against the live entity registry; returns error strings. */
@@ -134,10 +175,11 @@ export function summarizeDraft(draft: Omit<AutomationDraft, "summary">): string 
  * Throws with a readable message when the request can't be expressed.
  */
 export async function draftAutomation(prompt: string, model?: string): Promise<AutomationDraft> {
-  const result = await generateObject({
-    model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5"),
-    schema: buildSchema(),
+  const response = await getAnthropicClient().messages.create({
+    model: resolveModel(model),
+    max_tokens: 16000,
     system: `You convert plain-English business rules into Meridian automation rules.
+Call the save_automation_rule tool exactly once with the drafted rule.
 
 Entities and their fields:
 ${entityCatalog()}
@@ -147,10 +189,43 @@ Rules:
 - create_record data values may use {{field}} templates that interpolate the triggering record's fields, plus {{recordId}} and {{entity}}.
 - Use only fields that exist on the chosen entity. Prefer select-field values from the allowed options.
 - Keep the rule minimal — express exactly what was asked, nothing more.`,
-    prompt,
+    tools: [
+      {
+        name: "save_automation_rule",
+        description: "Save the drafted automation rule",
+        strict: true,
+        input_schema: buildRuleSchema() as never,
+      },
+    ],
+    tool_choice: { type: "tool", name: "save_automation_rule" },
+    messages: [{ role: "user", content: prompt }],
   });
 
-  const draft = result.object as Omit<AutomationDraft, "summary">;
+  if (response.stop_reason === "refusal") {
+    throw new Error("The model declined to draft this rule — try rephrasing the request.");
+  }
+  const toolUse = response.content.find((block) => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("The model did not produce a rule — try rephrasing the request.");
+  }
+
+  const raw = toolUse.input as Omit<AutomationDraft, "summary">;
+  // Strict schemas can't express a free-form map, so create_record data
+  // arrives as field/value pairs — fold them back into an object.
+  const draft: Omit<AutomationDraft, "summary"> = {
+    ...raw,
+    actions: raw.actions.map((action) => {
+      if (action.type === "create_record" && Array.isArray(action.data)) {
+        return {
+          ...action,
+          data: Object.fromEntries(
+            (action.data as { field: string; value: unknown }[]).map((p) => [p.field, p.value]),
+          ),
+        };
+      }
+      return action;
+    }),
+  };
   const errors = validateDraft(draft);
   if (errors.length > 0) {
     throw new Error(`The drafted rule has problems: ${errors.join("; ")}`);

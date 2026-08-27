@@ -1,8 +1,7 @@
-import { generateText, tool } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { z } from "zod";
+import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import type { ActorContext, EntityDefinition } from "@meridian/core";
 import { entityRegistry, entityService } from "@meridian/core";
+import { getAnthropicClient, resolveModel, messageText } from "./client.js";
 
 const SYSTEM_PROMPT = `You are Meridian AI, an intelligent ERP assistant.
 You help users manage CRM, projects, and business data through natural language.
@@ -32,111 +31,206 @@ export class AgentOrchestrator {
 
   constructor(actor: ActorContext, model?: string) {
     this.actor = actor;
-    this.model = model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5";
+    this.model = resolveModel(model);
   }
 
   async chat(message: string, history: { role: "user" | "assistant"; content: string }[] = []) {
-    const tools = this.buildTools();
+    const toolCalls: { toolName: string; args: unknown }[] = [];
+    const tools = this.buildTools(toolCalls);
 
-    const result = await generateText({
-      model: anthropic(this.model),
+    const finalMessage = await getAnthropicClient().beta.messages.toolRunner({
+      model: this.model,
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [
-        ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-        { role: "user", content: message },
+        ...history.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: message },
       ],
-      tools: tools as Parameters<typeof generateText>[0]["tools"],
-      maxSteps: 8,
+      tools,
+      max_iterations: 8,
     });
 
     return {
-      response: result.text,
-      toolCalls: result.steps.flatMap((s) => s.toolCalls ?? []),
-      usage: result.usage,
+      response: messageText(finalMessage.content as Parameters<typeof messageText>[0]),
+      toolCalls,
+      usage: finalMessage.usage,
     };
   }
 
-  private buildTools() {
-    const entityNames = entityRegistry.list().map((e) => e.name) as [string, ...string[]];
-    const entityTools: Record<string, unknown> = {};
+  private buildTools(toolCalls: { toolName: string; args: unknown }[]) {
+    const entityNames = entityRegistry.list().map((e) => e.name);
+    const track = (toolName: string, args: unknown) => toolCalls.push({ toolName, args });
+    const asResult = (value: unknown) => JSON.stringify(value);
+    const asError = (err: unknown) => JSON.stringify({ error: (err as Error).message });
+
+    const tools = [];
 
     for (const entity of entityRegistry.list()) {
       const fieldDocs = describeFields(entity);
 
-      entityTools[`list_${entity.name}`] = tool({
-        description: `List ${entity.pluralLabel ?? entity.label + "s"}. Filterable fields: ${fieldDocs}`,
-        parameters: z.object({
-          search: z.string().optional().describe("Free-text search"),
-          filters: z
-            .record(z.unknown())
-            .optional()
-            .describe("Exact-match filters, e.g. {\"stage\": \"won\"}"),
-          sortBy: z.string().optional().describe("Field name to sort by"),
-          sortOrder: z.enum(["asc", "desc"]).optional(),
-          page: z.number().optional(),
+      tools.push(
+        betaTool({
+          name: `list_${entity.name}`,
+          description: `List ${entity.pluralLabel ?? entity.label + "s"}. Filterable fields: ${fieldDocs}`,
+          inputSchema: {
+            type: "object",
+            properties: {
+              search: { type: "string", description: "Free-text search" },
+              filters: {
+                type: "object",
+                description: 'Exact-match filters, e.g. {"stage": "won"}',
+              },
+              sortBy: { type: "string", description: "Field name to sort by" },
+              sortOrder: { type: "string", enum: ["asc", "desc"] },
+              page: { type: "number" },
+            },
+          },
+          run: async (input: {
+            search?: string;
+            filters?: Record<string, unknown>;
+            sortBy?: string;
+            sortOrder?: "asc" | "desc";
+            page?: number;
+          }) => {
+            track(`list_${entity.name}`, input);
+            try {
+              return asResult(
+                await entityService.list(
+                  entity.name,
+                  { tenantId: this.actor.tenantId, ...input },
+                  this.actor,
+                ),
+              );
+            } catch (err) {
+              return asError(err);
+            }
+          },
         }),
-        execute: async ({ search, filters, sortBy, sortOrder, page }) =>
-          entityService.list(
-            entity.name,
-            { tenantId: this.actor.tenantId, search, filters, sortBy, sortOrder, page },
-            this.actor,
-          ),
-      });
-
-      entityTools[`read_${entity.name}`] = tool({
-        description: `Read a single ${entity.label} by ID`,
-        parameters: z.object({ id: z.string() }),
-        execute: async ({ id }) => entityService.read(entity.name, id, this.actor),
-      });
-
-      entityTools[`create_${entity.name}`] = tool({
-        description: `Create a new ${entity.label}. Fields: ${fieldDocs}`,
-        parameters: z.object({
-          data: z.record(z.unknown()).describe("Field values keyed by field name"),
+        betaTool({
+          name: `read_${entity.name}`,
+          description: `Read a single ${entity.label} by ID`,
+          inputSchema: {
+            type: "object",
+            properties: { id: { type: "string" } },
+            required: ["id"],
+          },
+          run: async (input: { id: string }) => {
+            track(`read_${entity.name}`, input);
+            try {
+              return asResult(await entityService.read(entity.name, input.id, this.actor));
+            } catch (err) {
+              return asError(err);
+            }
+          },
         }),
-        execute: async ({ data }) => entityService.create(entity.name, data, this.actor),
-      });
-
-      entityTools[`update_${entity.name}`] = tool({
-        description: `Update a ${entity.label}. Fields: ${fieldDocs}`,
-        parameters: z.object({
-          id: z.string(),
-          data: z.record(z.unknown()),
+        betaTool({
+          name: `create_${entity.name}`,
+          description: `Create a new ${entity.label}. Fields: ${fieldDocs}`,
+          inputSchema: {
+            type: "object",
+            properties: {
+              data: { type: "object", description: "Field values keyed by field name" },
+            },
+            required: ["data"],
+          },
+          run: async (input: { data: Record<string, unknown> }) => {
+            track(`create_${entity.name}`, input);
+            try {
+              return asResult(await entityService.create(entity.name, input.data, this.actor));
+            } catch (err) {
+              return asError(err);
+            }
+          },
         }),
-        execute: async ({ id, data }) => entityService.update(entity.name, id, data, this.actor),
-      });
+        betaTool({
+          name: `update_${entity.name}`,
+          description: `Update a ${entity.label}. Fields: ${fieldDocs}`,
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              data: { type: "object" },
+            },
+            required: ["id", "data"],
+          },
+          run: async (input: { id: string; data: Record<string, unknown> }) => {
+            track(`update_${entity.name}`, input);
+            try {
+              return asResult(
+                await entityService.update(entity.name, input.id, input.data, this.actor),
+              );
+            } catch (err) {
+              return asError(err);
+            }
+          },
+        }),
+      );
     }
 
-    entityTools.aggregate = tool({
-      description:
-        "Aggregate records: count, sum, or average, optionally grouped by a field. " +
-        "Use for questions like 'total pipeline value by stage' or 'how many open tasks'.",
-      parameters: z.object({
-        entity: z.enum(entityNames),
-        groupBy: z.string().optional().describe("Field to group by"),
-        metric: z.enum(["count", "sum", "avg"]).optional(),
-        metricField: z.string().optional().describe("Numeric field for sum/avg"),
-        filters: z.record(z.unknown()).optional(),
+    tools.push(
+      betaTool({
+        name: "aggregate",
+        description:
+          "Aggregate records: count, sum, or average, optionally grouped by a field. " +
+          "Use for questions like 'total pipeline value by stage' or 'how many open tasks'.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entity: { type: "string", enum: entityNames },
+            groupBy: { type: "string", description: "Field to group by" },
+            metric: { type: "string", enum: ["count", "sum", "avg"] },
+            metricField: { type: "string", description: "Numeric field for sum/avg" },
+            filters: { type: "object" },
+          },
+          required: ["entity"],
+        },
+        run: async (input: {
+          entity: string;
+          groupBy?: string;
+          metric?: "count" | "sum" | "avg";
+          metricField?: string;
+          filters?: Record<string, unknown>;
+        }) => {
+          track("aggregate", input);
+          try {
+            const { entity, ...options } = input;
+            return asResult(await entityService.aggregate(entity, options, this.actor));
+          } catch (err) {
+            return asError(err);
+          }
+        },
       }),
-      execute: async ({ entity, groupBy, metric, metricField, filters }) =>
-        entityService.aggregate(entity, { groupBy, metric, metricField, filters }, this.actor),
-    });
-
-    entityTools.delete_record = tool({
-      description:
-        "Permanently delete a record. Only call with confirm=true after the user has explicitly confirmed the deletion.",
-      parameters: z.object({
-        entity: z.enum(entityNames),
-        id: z.string(),
-        confirm: z.boolean().describe("Must be true; only after explicit user confirmation"),
+      betaTool({
+        name: "delete_record",
+        description:
+          "Permanently delete a record. Only call with confirm=true after the user has explicitly confirmed the deletion.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entity: { type: "string", enum: entityNames },
+            id: { type: "string" },
+            confirm: {
+              type: "boolean",
+              description: "Must be true; only after explicit user confirmation",
+            },
+          },
+          required: ["entity", "id", "confirm"],
+        },
+        run: async (input: { entity: string; id: string; confirm: boolean }) => {
+          track("delete_record", input);
+          if (!input.confirm) {
+            return JSON.stringify({ error: "Deletion not confirmed. Ask the user to confirm first." });
+          }
+          try {
+            await entityService.delete(input.entity, input.id, this.actor);
+            return asResult({ deleted: true, entity: input.entity, id: input.id });
+          } catch (err) {
+            return asError(err);
+          }
+        },
       }),
-      execute: async ({ entity, id, confirm }) => {
-        if (!confirm) return { error: "Deletion not confirmed. Ask the user to confirm first." };
-        await entityService.delete(entity, id, this.actor);
-        return { deleted: true, entity, id };
-      },
-    });
+    );
 
-    return entityTools;
+    return tools;
   }
 }

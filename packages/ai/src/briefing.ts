@@ -1,7 +1,6 @@
-import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
 import type { ActorContext } from "@meridian/core";
 import { entityService } from "@meridian/core";
+import { getAnthropicClient, resolveModel, messageText } from "./client.js";
 
 export interface BriefingData {
   pipeline: { group: string | null; count: number; value: number | null }[];
@@ -88,14 +87,18 @@ export async function generateBriefing(actor: ActorContext, model?: string): Pro
 
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const result = await generateText({
-        model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5"),
+      const response = await getAnthropicClient().messages.create({
+        model: resolveModel(model),
+        max_tokens: 1024,
         system:
           "You write short, actionable morning briefings for a business owner. " +
           "3-5 sentences. Lead with what needs attention today. Use plain language, no headers.",
-        prompt: `Write today's briefing from this data:\n${JSON.stringify(data, null, 2)}`,
+        messages: [
+          { role: "user", content: `Write today's briefing from this data:\n${JSON.stringify(data, null, 2)}` },
+        ],
       });
-      if (result.text.trim()) summary = result.text.trim();
+      const text = messageText(response.content).trim();
+      if (response.stop_reason !== "refusal" && text) summary = text;
     } catch (err) {
       console.error("[briefing] LLM summary failed, using fallback:", (err as Error).message);
     }
