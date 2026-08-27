@@ -318,6 +318,7 @@ export default function EntityListPage() {
           {someSelected && (
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
               <span className="text-sm font-medium tabular-nums">{selectedIds.size} selected</span>
+              <div className="hidden h-4 w-px bg-primary/30 sm:block" aria-hidden="true" />
               <Button
                 variant="destructive"
                 size="sm"
@@ -330,7 +331,7 @@ export default function EntityListPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="touch-manipulation"
+                className="ml-auto touch-manipulation sm:ml-0"
                 onClick={() => setSelectedIds(new Set())}
                 aria-label="Clear selection"
               >
@@ -338,7 +339,7 @@ export default function EntityListPage() {
               </Button>
             </div>
           )}
-          <div className="overflow-hidden rounded-lg border border-border/80 shadow-elevated">
+          <div className="overflow-hidden rounded-xl border border-border/80 shadow-layered">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">

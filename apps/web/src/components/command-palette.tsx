@@ -45,7 +45,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         >
           <Command.Input
             placeholder="Search entities, navigate…"
-            className="flex h-12 w-full border-b border-border/80 bg-transparent px-4 text-sm outline-none placeholder:text-muted-foreground"
+            className="flex h-12 w-full border-b border-border/80 bg-transparent px-4 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           />
           <Command.List className="max-h-80 overflow-y-auto overscroll-contain p-2">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">No results found.</Command.Empty>

@@ -83,11 +83,52 @@
     box-shadow: var(--shadow-elevated);
   }
 
+  .shadow-layered {
+    box-shadow:
+      0 1px 2px hsl(222 47% 4% / 0.25),
+      0 4px 6px -1px hsl(222 47% 4% / 0.3),
+      0 10px 15px -3px hsl(222 47% 4% / 0.35);
+  }
+
+  .glass-card {
+    @apply border border-border/80 bg-card/80 backdrop-blur-sm;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .glass-sidebar {
+    @apply border-r border-border/80 bg-card/50 backdrop-blur-xl;
+  }
+
+  .login-gradient-bg {
+    background:
+      radial-gradient(ellipse 40% 40% at 10% 10%, hsl(217 91% 60% / 0.08), transparent),
+      radial-gradient(ellipse 40% 40% at 90% 90%, hsl(217 91% 40% / 0.06), transparent),
+      hsl(var(--background));
+  }
+
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 
   .touch-manipulation {
     touch-action: manipulation;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 10px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
   }
 }

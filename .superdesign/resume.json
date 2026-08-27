@@ -4,27 +4,34 @@
   "canvasUrl": "https://superdesign.dev/teams/867f4c64-7612-4444-802c-9a57908fcac2/projects/e42df7c2-8f78-4180-888e-497189dfc325",
   "targets": {
     "/dashboard": {
-      "status": "ready",
+      "status": "implemented",
       "projectId": "e42df7c2-8f78-4180-888e-497189dfc325",
       "activeDraftId": "e8b17a99-b585-4389-bc05-f95be57c5cf9",
       "previewUrl": "https://p.superdesign.dev/draft/e8b17a99-b585-4389-bc05-f95be57c5cf9"
     },
     "/entities/[entity]": {
-      "status": "ready",
+      "status": "implemented",
       "projectId": "e42df7c2-8f78-4180-888e-497189dfc325",
       "activeDraftId": "0bfc0c57-d7cf-4f9d-95ae-809a0a0b8de0",
       "previewUrl": "https://p.superdesign.dev/draft/0bfc0c57-d7cf-4f9d-95ae-809a0a0b8de0"
     },
     "/entities/[entity]/[id]": {
-      "status": "ready",
+      "status": "implemented",
       "projectId": "e42df7c2-8f78-4180-888e-497189dfc325",
       "activeDraftId": "f564359a-1d7c-4d46-abfe-58f6ddc20d4f",
       "previewUrl": "https://p.superdesign.dev/draft/f564359a-1d7c-4d46-abfe-58f6ddc20d4f"
     },
     "/": {
-      "status": "pending",
+      "status": "implemented",
       "projectId": "e42df7c2-8f78-4180-888e-497189dfc325",
-      "activeDraftId": null
+      "activeDraftId": "91b259be-8157-4225-8ee9-bccb59152a2f",
+      "previewUrl": "https://p.superdesign.dev/draft/91b259be-8157-4225-8ee9-bccb59152a2f"
+    },
+    "/ai-chat": {
+      "status": "implemented",
+      "projectId": "e42df7c2-8f78-4180-888e-497189dfc325",
+      "activeDraftId": "8f51cee4-5b44-4d30-a179-4252627be730",
+      "previewUrl": "https://p.superdesign.dev/draft/8f51cee4-5b44-4d30-a179-4252627be730"
     }
   }
 }
