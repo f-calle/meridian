@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { baseConnectionOptions } from "./connection-options.js";
 import * as systemSchema from "./schema.js";
 import * as entitySchema from "./entity-schema.generated.js";
 
@@ -14,7 +15,7 @@ export function getDb() {
     if (!url) {
       throw new Error("DATABASE_URL is not set");
     }
-    client = postgres(url);
+    client = postgres(url, baseConnectionOptions());
     db = drizzle(client, { schema });
   }
   return db;

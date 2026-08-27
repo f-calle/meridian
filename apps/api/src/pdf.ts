@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import type { Hono, Context } from "hono";
+import type { App, AppContext } from "./app-env.js";
 import { entityService, isPermissionError } from "@meridian/core";
 import type { ActorContext } from "@meridian/core";
 
@@ -124,7 +124,7 @@ function buildDocumentPdf(
   });
 }
 
-export function registerPdfRoutes(app: Hono, getActor: (c: Context) => ActorContext | null): void {
+export function registerPdfRoutes(app: App, getActor: (c: AppContext) => ActorContext | null): void {
   app.get("/api/documents/:entity/:id/pdf", async (c) => {
     const actor = getActor(c);
     if (!actor) return c.json({ error: "Unauthorized" }, 401);

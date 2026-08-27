@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
+import { bodyLimit } from "hono/body-limit";
+import { requestId } from "hono/request-id";
 import { sql } from "drizzle-orm";
 import {
   registerEntities,
@@ -16,13 +17,17 @@ import {
   verifyToken,
   startAutomationEngine,
   checkPermission,
-  isPermissionError,
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
 import { OdooAdapter, importCsv, parseCsv, CSV_PRESETS } from "@meridian/migration";
 import { AgentOrchestrator, generateBriefing, draftAutomation, draftCsvMapping } from "@meridian/ai";
 import { isLoginBlocked, recordLoginFailure, clearLoginFailures } from "./rate-limit.js";
+import { allowedOrigins, corsMiddleware, securityHeaders, clientIp } from "./security.js";
+import { requestLogger } from "./observability.js";
+import { throttle } from "./throttle.js";
+import { ApiError, respondToError } from "./errors.js";
+import type { App, AppContext, AppEnv } from "./app-env.js";
 import { registerUserRoutes } from "./users.js";
 import { registerPdfRoutes } from "./pdf.js";
 import { runMigrations, seedDemoTenant } from "@meridian/core";
@@ -38,23 +43,78 @@ pluginManager.install(
 );
 pluginManager.enable("example-plugin");
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
-app.use(
-  "*",
-  cors({
-    origin: process.env.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:3000",
-    credentials: true,
-  }),
+// Order matters: an id first so every later log line and error body can quote
+// it, then the logger so it observes the final status, then the headers and
+// origin checks that a rejected request should still receive.
+app.use("*", requestId());
+app.use("*", requestLogger());
+app.use("*", securityHeaders());
+app.use("*", corsMiddleware());
+
+/**
+ * A JSON API has no legitimate megabyte-scale request, so bodies are capped
+ * before they are buffered into the heap. Imports are the exception — they
+ * carry a whole CSV — and the limit is chosen per path rather than by
+ * registering two middlewares, because the first one registered would reject an
+ * import before the more permissive one ever ran.
+ */
+const IMPORT_PATHS = new Set(["/api/migration/csv/import", "/api/ai/migration/map"]);
+const generalBodyLimit = bodyLimit({
+  maxSize: 1024 * 1024,
+  onError: (c) => c.json({ error: "Request body too large" }, 413),
+});
+const importBodyLimit = bodyLimit({
+  maxSize: 10 * 1024 * 1024,
+  onError: (c) =>
+    c.json({ error: "That file is too large to import in one request (10 MB max)" }, 413),
+});
+app.use("/api/*", (c, next) =>
+  IMPORT_PATHS.has(c.req.path) ? importBodyLimit(c, next) : generalBodyLimit(c, next),
+);
+
+// Resolve the bearer token once per request. Routes read c.get("actor"); the
+// throttles read it too, so a limit follows the account rather than the proxy.
+app.use("/api/*", async (c, next) => {
+  const actor = actorFromRequest(c);
+  if (actor) c.set("actor", actor);
+  await next();
+});
+
+app.onError((err, c) => respondToError(c, err));
+
+/**
+ * Rate limits, tightest where a request is most expensive.
+ *
+ * AI calls cost money and take seconds, so one account in a retry loop is both
+ * a bill and a queue for everyone else. Imports touch thousands of rows per
+ * call.
+ *
+ * The write ceiling is set for a scripted client rather than a typing human:
+ * agents and seed scripts legitimately write in bursts, and 10/second still
+ * bounds a runaway loop long before it saturates the database.
+ */
+app.use("/api/ai/*", throttle({ name: "ai", limit: 30, windowSeconds: 60 }));
+app.use("/api/migration/*", throttle({ name: "migration", limit: 20, windowSeconds: 60 }));
+app.use("/api/*", async (c, next) =>
+  c.req.method === "GET"
+    ? next()
+    : throttle({ name: "write", limit: 600, windowSeconds: 60 })(c, next),
 );
 
 app.get("/health", (c) => c.json({ status: "ok", service: "meridian-api" }));
 
 // Auth
 app.post("/api/auth/login", async (c) => {
-  const { email, password } = await c.req.json<{ email: string; password: string }>();
-  const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const throttleKey = `${clientIp}:${(email ?? "").toLowerCase()}`;
+  let email: string;
+  let password: string;
+  try {
+    ({ email, password } = await c.req.json<{ email: string; password: string }>());
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  const throttleKey = `${clientIp(c)}:${(email ?? "").toLowerCase()}`;
 
   const { blocked, retryAfterSeconds } = await isLoginBlocked(throttleKey);
   if (blocked) {
@@ -125,8 +185,10 @@ app.get("/api/auth/me", async (c) => {
   return c.json({ user: actor });
 });
 
-// Entity metadata
+// Entity metadata. Behind auth: the field-level schema of every business
+// object is a map of the deployment, not something to hand out anonymously.
 app.get("/api/entities", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   const entities = entityRegistry.list().map((e) => ({
     name: e.name,
     label: e.label,
@@ -136,12 +198,14 @@ app.get("/api/entities", (c) => {
 });
 
 app.get("/api/entities/:name/schema", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   const entity = entityRegistry.get(c.req.param("name"));
   if (!entity) return c.json({ error: "Entity not found" }, 404);
   return c.json(getFormConfig(entity));
 });
 
 app.get("/api/entities/:name/columns", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   const entity = entityRegistry.get(c.req.param("name"));
   if (!entity) return c.json({ error: "Entity not found" }, 404);
   return c.json({ columns: getListColumns(entity) });
@@ -215,7 +279,11 @@ for (const action of crudActions) {
           return c.json(record);
         }
         case "delete": {
-          await entityService.delete(entityName, c.req.param("id")!, actor);
+          // Deleting refuses by default when other records still point here.
+          // ?detach=true is the caller saying they mean to clear those links.
+          await entityService.delete(entityName, c.req.param("id")!, actor, {
+            detach: c.req.query("detach") === "true",
+          });
           return c.json({ success: true });
         }
         case "search": {
@@ -229,9 +297,7 @@ for (const action of crudActions) {
         }
       }
     } catch (err) {
-      const message = (err as Error).message;
-      const status = isPermissionError(err) ? 403 : message.includes("not found") ? 404 : 400;
-      return c.json({ error: message }, status);
+      return respondToError(c, err);
     }
   });
 }
@@ -274,9 +340,7 @@ app.get("/api/:entity/audit/:id", async (c) => {
 
     return c.json({ entries });
   } catch (err) {
-    const message = (err as Error).message;
-    const status = isPermissionError(err) ? 403 : 400;
-    return c.json({ error: message }, status);
+    return respondToError(c, err);
   }
 });
 
@@ -303,12 +367,13 @@ app.post("/api/:entity/bulk-delete", async (c) => {
     return c.json({ error: "Cannot delete more than 100 records at once" }, 400);
   }
 
+  const detach = c.req.query("detach") === "true";
   const deleted: string[] = [];
   const failed: { id: string; error: string }[] = [];
 
   for (const id of ids) {
     try {
-      await entityService.delete(entityName, id, actor);
+      await entityService.delete(entityName, id, actor, { detach });
       deleted.push(id);
     } catch (err) {
       failed.push({ id, error: (err as Error).message });
@@ -327,10 +392,16 @@ app.post("/api/ai/chat", async (c) => {
     return c.json({ error: "AI not configured — set ANTHROPIC_API_KEY" }, 503);
   }
 
-  const { message, history } = await c.req.json<{
-    message: string;
-    history?: { role: "user" | "assistant"; content: string }[];
-  }>();
+  let message: string;
+  let history: { role: "user" | "assistant"; content: string }[] | undefined;
+  try {
+    ({ message, history } = await c.req.json());
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof message !== "string" || message.trim() === "") {
+    return c.json({ error: "message is required" }, 400);
+  }
 
   const orchestrator = new AgentOrchestrator(actor);
   const result = await orchestrator.chat(message, history ?? []);
@@ -395,9 +466,7 @@ app.get("/api/:entity/aggregate", async (c) => {
     );
     return c.json({ rows });
   } catch (err) {
-    const message = (err as Error).message;
-    const status = isPermissionError(err) ? 403 : 400;
-    return c.json({ error: message }, status);
+    return respondToError(c, err);
   }
 });
 
@@ -412,7 +481,7 @@ app.get("/api/ai/briefing", async (c) => {
     });
     return c.json(briefing);
   } catch (err) {
-    return c.json({ error: (err as Error).message }, 500);
+    return respondToError(c, err);
   }
 });
 
@@ -457,13 +526,7 @@ app.post("/api/quote/:id/convert", async (c) => {
     );
     return c.json({ invoice, created: true }, 201);
   } catch (err) {
-    const message = (err as Error).message;
-    const status = isPermissionError(err)
-      ? 403
-      : message.includes("not found")
-        ? 404
-        : 400;
-    return c.json({ error: message }, status);
+    return respondToError(c, err);
   }
 });
 
@@ -495,6 +558,7 @@ app.post("/api/ai/migration/map", async (c) => {
 
 // CSV migration (ERPNext, Dolibarr, generic exports)
 app.get("/api/migration/csv/presets", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   return c.json({ presets: CSV_PRESETS });
 });
 
@@ -502,7 +566,7 @@ app.post("/api/migration/csv/import", async (c) => {
   const actor = getActor(c);
   if (!actor) return c.json({ error: "Unauthorized" }, 401);
 
-  const body = await c.req.json<{
+  let body: {
     csv: string;
     preset?: string;
     entity?: string;
@@ -510,7 +574,15 @@ app.post("/api/migration/csv/import", async (c) => {
     externalIdColumn?: string;
     sourceSystem?: string;
     dryRun?: boolean;
-  }>();
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof body.csv !== "string" || body.csv.trim() === "") {
+    return c.json({ error: "csv is required" }, 400);
+  }
 
   try {
     let options;
@@ -549,7 +621,13 @@ app.post("/api/migration/odoo/connect", async (c) => {
   const actor = getActor(c);
   if (!actor) return c.json({ error: "Unauthorized" }, 401);
 
-  const config = await c.req.json<{ url: string; database: string; username: string; password: string }>();
+  let config: { url: string; database: string; username: string; password: string };
+  try {
+    config = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!config?.url) return c.json({ error: "url is required" }, 400);
   const adapter = new OdooAdapter(config);
 
   try {
@@ -564,7 +642,15 @@ app.post("/api/migration/odoo/connect", async (c) => {
     );
     return c.json({ connected: true, models: counts });
   } catch (err) {
-    return c.json({ error: (err as Error).message }, 400);
+    console.error(
+      JSON.stringify({
+        level: "warn",
+        requestId: c.get("requestId"),
+        route: "odoo/connect",
+        error: (err as Error).message,
+      }),
+    );
+    return c.json({ error: "Could not connect to Odoo. Check the URL, database, and credentials." }, 400);
   }
 });
 
@@ -572,28 +658,50 @@ app.post("/api/migration/odoo/import", async (c) => {
   const actor = getActor(c);
   if (!actor) return c.json({ error: "Unauthorized" }, 401);
 
-  const { config, models, dryRun } = await c.req.json<{
+  let body: {
     config: { url: string; database: string; username: string; password: string };
     models?: string[];
     dryRun?: boolean;
-  }>();
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!body.config?.url) return c.json({ error: "config.url is required" }, 400);
 
-  const adapter = new OdooAdapter(config);
-  const report = await adapter.runMigration(actor, models, dryRun ?? false);
-  return c.json(report);
+  try {
+    const adapter = new OdooAdapter(body.config);
+    return c.json(await adapter.runMigration(actor, body.models, body.dryRun ?? false));
+  } catch (err) {
+    // Never echo the adapter error as-is: the request carried Odoo credentials
+    // and a driver-level message can quote the connection it was handed.
+    console.error(
+      JSON.stringify({
+        level: "error",
+        requestId: c.get("requestId"),
+        route: "odoo/import",
+        error: (err as Error).message,
+      }),
+    );
+    throw new ApiError(400, "The Odoo import failed. Check the connection details and try again.");
+  }
 });
 
 app.get("/api/migration/odoo/mappings", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   const adapter = new OdooAdapter({ url: "", database: "", username: "", password: "" });
   return c.json({ mappings: adapter.getAvailableMappings() });
 });
 
 // Plugins
 app.get("/api/plugins", (c) => {
+  if (!getActor(c)) return c.json({ error: "Unauthorized" }, 401);
   return c.json({ plugins: pluginManager.list().map((p) => ({ name: p.manifest.name, state: p.state })) });
 });
 
-function getActor(c: { req: { header: (name: string) => string | undefined } }): ActorContext | null {
+/** Verify the bearer token. Called once per request by the auth middleware. */
+function actorFromRequest(c: AppContext): ActorContext | null {
   const auth = c.req.header("Authorization");
   if (!auth?.startsWith("Bearer ")) return null;
 
@@ -608,11 +716,26 @@ function getActor(c: { req: { header: (name: string) => string | undefined } }):
   };
 }
 
+/** The signed-in actor for this request, or null. */
+function getActor(c: AppContext): ActorContext | null {
+  return c.get("actor") ?? null;
+}
+
 const port = Number(process.env.PORT ?? 3001);
 
 if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
   console.error("FATAL: AUTH_SECRET must be set in production — refusing to start");
   process.exit(1);
+}
+
+// Not fatal: an API-only deployment driving agents over API keys has no browser
+// origin to allow. But a deployment that does serve the web app and forgot this
+// fails every request from it, so say so at boot rather than in a console tab.
+if (allowedOrigins().length === 0) {
+  console.warn(
+    "WARNING: no browser origins allowed — set MERIDIAN_CORS_ORIGINS (or NEXT_PUBLIC_APP_URL). " +
+      "Requests from a browser will be rejected by CORS.",
+  );
 }
 
 // Railway-friendly bootstrap: migrate/seed on boot when enabled, no shell needed

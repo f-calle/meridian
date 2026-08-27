@@ -37,6 +37,8 @@ export default function EntityDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // The API's explanation when it refuses a delete that other records depend on.
+  const [deleteBlockedBy, setDeleteBlockedBy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const pageTitle = record && schema ? recordTitle(record, schema.label) : schema?.label ?? "Record";
@@ -109,21 +111,25 @@ export default function EntityDetailPage() {
     }
   }
 
-  async function confirmDelete() {
+  async function confirmDelete(detach = false) {
     setDeleting(true);
     try {
-      await api.delete(entity, id);
-      toast({ title: "Record deleted" });
+      await api.delete(entity, id, { detach });
+      toast({ title: detach ? "Record deleted and links cleared" : "Record deleted" });
+      setDeleteOpen(false);
       router.push(`/entities/${entity}`);
     } catch (err) {
-      toast({
-        title: "Delete failed",
-        description: (err as Error).message,
-        variant: "destructive",
-      });
+      const message = (err as Error).message;
+      // Other records still point here. Keep the dialog open, name them, and
+      // make unlinking an explicit second choice rather than a dead end.
+      if (message.startsWith("Cannot delete")) {
+        setDeleteBlockedBy(message);
+      } else {
+        toast({ title: "Delete failed", description: message, variant: "destructive" });
+        setDeleteOpen(false);
+      }
     } finally {
       setDeleting(false);
-      setDeleteOpen(false);
     }
   }
 
@@ -285,20 +291,47 @@ export default function EntityDetailPage() {
         </div>
       </div>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) setDeleteBlockedBy(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {schema.label}?</DialogTitle>
+            <DialogTitle>
+              {deleteBlockedBy ? "Still linked to other records" : `Delete ${schema.label}?`}
+            </DialogTitle>
             <DialogDescription>
-              This will permanently delete <strong>{recordLabel(record)}</strong>. This action cannot be undone.
+              {deleteBlockedBy ? (
+                deleteBlockedBy
+              ) : (
+                <>
+                  This will permanently delete <strong>{recordLabel(record)}</strong>. This action cannot be
+                  undone.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteBlockedBy(null);
+              }}
+              disabled={deleting}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleting} className="touch-manipulation">
-              {deleting ? "Deleting…" : "Delete"}
+            <Button
+              variant="destructive"
+              onClick={() => confirmDelete(!!deleteBlockedBy)}
+              disabled={deleting}
+              className="touch-manipulation"
+            >
+              {deleting ? "Deleting…" : deleteBlockedBy ? "Delete and unlink" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -67,7 +67,16 @@ See [`.env.example`](.env.example) for the full annotated list.
 | `API_URL` | Internal API address |
 | `MCP_URL` | Internal MCP server (never public) |
 | `ANTHROPIC_API_KEY` | AI assistant (optional) |
-| `NEXT_PUBLIC_APP_URL` | Public web URL |
+| `NEXT_PUBLIC_APP_URL` | Public web URL (also the default allowed CORS origin) |
+| `MERIDIAN_CORS_ORIGINS` | Comma-separated browser origin allowlist; overrides the above |
+| `MERIDIAN_DB_POOL_MAX` | Max Postgres connections per instance (default 10) |
+| `MERIDIAN_STATEMENT_TIMEOUT_MS` | Cap on a single request-path query (default 30000) |
+
+## Security
+
+Auth, tenant isolation, rate limits, CORS, error handling, and the read-only
+guarantee on the Odoo import are documented in
+[docs/security.md](docs/security.md), including the known gaps.
 
 ## Deploying to Railway
 

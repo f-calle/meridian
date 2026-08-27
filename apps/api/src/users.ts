@@ -1,4 +1,4 @@
-import type { Hono, Context } from "hono";
+import type { App, AppContext } from "./app-env.js";
 import { sql } from "drizzle-orm";
 import { getDb, hashPassword, verifyPassword } from "@meridian/core";
 import type { ActorContext } from "@meridian/core";
@@ -15,8 +15,8 @@ interface UserRow {
 
 /** Team management (admin-only) + self-service password change. */
 export function registerUserRoutes(
-  app: Hono,
-  getActor: (c: Context) => ActorContext | null,
+  app: App,
+  getActor: (c: AppContext) => ActorContext | null,
 ): void {
   app.get("/api/users", async (c) => {
     const actor = getActor(c);

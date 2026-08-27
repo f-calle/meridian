@@ -60,9 +60,14 @@ export default function EntityListPage() {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  // Set when the API refuses a delete because other records still link to it.
+  // Holds the API's explanation so the dialog can name what's in the way.
+  const [deleteBlockedBy, setDeleteBlockedBy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  // How many of a bulk delete were refused because other records link to them.
+  const [bulkBlockedCount, setBulkBlockedCount] = useState(0);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   usePageTitle(schema?.pluralLabel ?? entity);
@@ -170,17 +175,33 @@ export default function EntityListPage() {
     }
   }
 
-  async function confirmBulkDelete() {
+  async function confirmBulkDelete(detach = false) {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     setBulkDeleting(true);
     try {
-      const result = await api.bulkDelete(entity, ids);
-      setBulkDeleteOpen(false);
-      setSelectedIds(new Set());
+      const result = await api.bulkDelete(entity, ids, { detach });
       load();
+
+      const blocked = result.failed.filter((f) => f.error.startsWith("Cannot delete"));
+      // Everything that failed did so only because something still links to it,
+      // so the dialog stays open and offers to clear those links — closing it
+      // and firing a toast would leave the user with no way forward.
+      if (blocked.length > 0 && blocked.length === result.failed.length) {
+        setBulkBlockedCount(blocked.length);
+        setSelectedIds(new Set(blocked.map((f) => f.id)));
+        return;
+      }
+
+      setBulkDeleteOpen(false);
+      setBulkBlockedCount(0);
+      setSelectedIds(new Set());
       if (result.failed.length === 0) {
-        toast({ title: `Deleted ${result.deleted.length} records` });
+        toast({
+          title: detach
+            ? `Deleted ${result.deleted.length} records and cleared their links`
+            : `Deleted ${result.deleted.length} records`,
+        });
       } else {
         toast({
           title: `Deleted ${result.deleted.length} of ${ids.length} records`,
@@ -224,20 +245,25 @@ export default function EntityListPage() {
     });
   }
 
-  async function confirmDelete() {
+  async function confirmDelete(detach = false) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await api.delete(entity, deleteTarget.id);
+      await api.delete(entity, deleteTarget.id, { detach });
       setDeleteTarget(null);
+      setDeleteBlockedBy(null);
       load();
-      toast({ title: "Record deleted" });
+      toast({ title: detach ? "Record deleted and links cleared" : "Record deleted" });
     } catch (err) {
-      toast({
-        title: "Delete failed",
-        description: (err as Error).message,
-        variant: "destructive",
-      });
+      const message = (err as Error).message;
+      // The API refuses while other records point here. Keep the dialog open and
+      // show what they are, so unlinking is a deliberate second choice rather
+      // than a dead end the user has to guess their way out of.
+      if (message.startsWith("Cannot delete")) {
+        setDeleteBlockedBy(message);
+      } else {
+        toast({ title: "Delete failed", description: message, variant: "destructive" });
+      }
     } finally {
       setDeleting(false);
     }
@@ -453,39 +479,96 @@ export default function EntityListPage() {
         </>
       )}
 
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <Dialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          setBulkDeleteOpen(open);
+          if (!open) setBulkBlockedCount(0);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {selectedIds.size} {schema?.pluralLabel?.toLowerCase() ?? "records"}?</DialogTitle>
+            <DialogTitle>
+              {bulkBlockedCount > 0
+                ? "Still linked to other records"
+                : `Delete ${selectedIds.size} ${schema?.pluralLabel?.toLowerCase() ?? "records"}?`}
+            </DialogTitle>
             <DialogDescription>
-              This will permanently delete {selectedIds.size} selected records. This action cannot be undone.
+              {bulkBlockedCount > 0
+                ? `${bulkBlockedCount} of the selected records still have other records linked to them. Deleting now will clear those links.`
+                : `This will permanently delete ${selectedIds.size} selected records. This action cannot be undone.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkDeleteOpen(false);
+                setBulkBlockedCount(0);
+              }}
+              disabled={bulkDeleting}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmBulkDelete} disabled={bulkDeleting} className="touch-manipulation">
-              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
+            <Button
+              variant="destructive"
+              onClick={() => confirmBulkDelete(bulkBlockedCount > 0)}
+              disabled={bulkDeleting}
+              className="touch-manipulation"
+            >
+              {bulkDeleting
+                ? "Deleting…"
+                : bulkBlockedCount > 0
+                  ? `Delete ${selectedIds.size} and unlink`
+                  : `Delete ${selectedIds.size}`}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteBlockedBy(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {schema?.label ?? "Record"}?</DialogTitle>
+            <DialogTitle>
+              {deleteBlockedBy ? "Still linked to other records" : `Delete ${schema?.label ?? "Record"}?`}
+            </DialogTitle>
             <DialogDescription>
-              This will permanently delete <strong>{deleteTarget?.label}</strong>. This action cannot be undone.
+              {deleteBlockedBy ? (
+                deleteBlockedBy
+              ) : (
+                <>
+                  This will permanently delete <strong>{deleteTarget?.label}</strong>. This action cannot be
+                  undone.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteBlockedBy(null);
+              }}
+              disabled={deleting}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleting} className="touch-manipulation">
-              {deleting ? "Deleting…" : "Delete"}
+            <Button
+              variant="destructive"
+              onClick={() => confirmDelete(!!deleteBlockedBy)}
+              disabled={deleting}
+              className="touch-manipulation"
+            >
+              {deleting ? "Deleting…" : deleteBlockedBy ? "Delete and unlink" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

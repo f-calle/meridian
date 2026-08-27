@@ -9,6 +9,7 @@ import { auditLog } from "../db/schema.js";
 import { getSql } from "../db/raw-sql.js";
 import { ensureEntityTables } from "../db/entity-store.js";
 import { toColumnName } from "../db/naming.js";
+import { detachReferences, findReferences, ReferentialIntegrityError } from "./references.js";
 
 export class EntityService {
   constructor() {
@@ -114,10 +115,31 @@ export class EntityService {
     return merged;
   }
 
-  async delete(entityName: string, id: string, actor: ActorContext): Promise<void> {
+  /**
+   * Delete a record.
+   *
+   * Refuses when other records still point at it, so a deleted company can't
+   * leave contacts and deals holding a uuid that resolves to nothing. Pass
+   * `{ detach: true }` to clear those links instead — the caller has to say so.
+   */
+  async delete(
+    entityName: string,
+    id: string,
+    actor: ActorContext,
+    options: { detach?: boolean } = {},
+  ): Promise<void> {
     const entity = this.getEntity(entityName);
     checkPermission(entity, actor, "delete");
     await this.read(entityName, id, actor);
+
+    if (options.detach) {
+      await detachReferences(entityName, id, actor);
+    } else {
+      const references = await findReferences(entityName, id, actor);
+      if (references.length > 0) {
+        throw new ReferentialIntegrityError(entityName, id, references);
+      }
+    }
 
     await getSql().unsafe(
       `DELETE FROM ${entityName} WHERE id = $1 AND tenant_id = $2`,

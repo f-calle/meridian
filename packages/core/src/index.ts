@@ -17,6 +17,15 @@ export {
   clearAutomationCache,
 } from "./automations/engine.js";
 export type { AutomationRule, AutomationCondition, AutomationAction } from "./automations/engine.js";
+export {
+  findReferences,
+  detachReferences,
+  inboundRelations,
+  describeReferences,
+  ReferentialIntegrityError,
+  isReferentialIntegrityError,
+} from "./services/references.js";
+export type { Reference } from "./services/references.js";
 export { getDb, closeDb } from "./db/client.js";
 export { expectedColumns, sqlTypeFor } from "./db/entity-store.js";
 export { renderEntitySchema, drizzleColumnFor, tableConstName } from "./db/schema-codegen.js";

@@ -104,8 +104,16 @@ export const api = {
       body: JSON.stringify({ id, ...data }),
     }),
 
-  delete: (entity: string, id: string) =>
-    apiFetch<{ success: boolean }>(`/api/${entity}/delete/${id}`, { method: "DELETE" }),
+  /**
+   * Delete a record. The API refuses with 409 while other records still link to
+   * it; `detach` says to clear those links first, which the UI only sends after
+   * showing the user what they are.
+   */
+  delete: (entity: string, id: string, options: { detach?: boolean } = {}) =>
+    apiFetch<{ success: boolean }>(
+      `/api/${entity}/delete/${id}${options.detach ? "?detach=true" : ""}`,
+      { method: "DELETE" },
+    ),
 
   briefing: () =>
     apiFetch<{
@@ -142,9 +150,9 @@ export const api = {
   auditLog: (entity: string, id: string) =>
     apiFetch<{ entries: AuditEntry[] }>(`/api/${entity}/audit/${id}`),
 
-  bulkDelete: (entity: string, ids: string[]) =>
+  bulkDelete: (entity: string, ids: string[], options: { detach?: boolean } = {}) =>
     apiFetch<{ deleted: string[]; failed: { id: string; error: string }[]; success: boolean }>(
-      `/api/${entity}/bulk-delete`,
+      `/api/${entity}/bulk-delete${options.detach ? "?detach=true" : ""}`,
       { method: "POST", body: JSON.stringify({ ids }) },
     ),
 
