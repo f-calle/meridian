@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, AlertCircle } from "lucide-react";
+import { Sparkles, AlertCircle, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
 
 interface BriefingState {
@@ -14,6 +16,7 @@ interface BriefingState {
   openDealValue: number;
   overdueCount: number;
   activeProjects: number;
+  pipeline: { group: string | null; count: number; value: number | null }[];
 }
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -27,6 +30,8 @@ const statItems = [
 ];
 
 export default function DashboardPage() {
+  usePageTitle("Dashboard");
+
   const [stats, setStats] = useState<Record<string, number>>({});
   const [statsLoading, setStatsLoading] = useState(true);
   const [briefing, setBriefing] = useState<BriefingState | null>(null);
@@ -45,6 +50,7 @@ export default function DashboardPage() {
           openDealValue: b.data.openDealValue,
           overdueCount: b.data.overdueActivities.length,
           activeProjects: b.data.activeProjects,
+          pipeline: b.data.pipeline,
         }),
       )
       .catch(() => {
@@ -70,6 +76,8 @@ export default function DashboardPage() {
       .then((results) => setStats(Object.fromEntries(results)))
       .finally(() => setStatsLoading(false));
   }, []);
+
+  const maxPipelineValue = Math.max(...(briefing?.pipeline.map((p) => p.value ?? 0) ?? [1]), 1);
 
   return (
     <div className="p-6 md:p-8">
@@ -113,7 +121,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm leading-relaxed">{briefing.summary}</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mb-4 flex flex-wrap gap-3">
               <Badge variant="secondary" className="tabular-nums">
                 {briefing.openDealCount} open deals ({currency.format(briefing.openDealValue)})
               </Badge>
@@ -124,6 +132,47 @@ export default function DashboardPage() {
                 {briefing.overdueCount} overdue activities
               </Badge>
             </div>
+
+            {briefing.pipeline.length > 0 && (
+              <>
+                <Separator className="mb-4" />
+                <div>
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Target className="h-4 w-4" aria-hidden="true" />
+                    Pipeline by Stage
+                  </div>
+                  <div className="space-y-3">
+                    {briefing.pipeline.map((stage) => {
+                      const value = stage.value ?? 0;
+                      const width = Math.max(4, Math.round((value / maxPipelineValue) * 100));
+                      return (
+                        <div key={stage.group ?? "unknown"}>
+                          <div className="mb-1 flex items-center justify-between text-sm">
+                            <span className="capitalize">{stage.group ?? "Unassigned"}</span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {stage.count} · {currency.format(value)}
+                            </span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-primary transition-[width] duration-300"
+                              style={{ width: `${width}%` }}
+                              role="presentation"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Link
+                    href="/entities/deal"
+                    className="mt-4 inline-block text-sm text-primary hover:underline touch-manipulation"
+                  >
+                    View all deals →
+                  </Link>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : null}
@@ -139,7 +188,7 @@ export default function DashboardPage() {
                 {statsLoading ? (
                   <Skeleton className="h-9 w-16" />
                 ) : (
-                  <p className="tabular-nums text-3xl font-bold tracking-tight">{stats[item.key] ?? "—"}</p>
+                  <p className="tabular-nums text-3xl font-bold tracking-tight">{stats[item.key]?.toLocaleString() ?? "—"}</p>
                 )}
               </CardContent>
             </Card>

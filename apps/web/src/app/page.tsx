@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MeridianLogo } from "@/components/meridian-logo";
 import { api, setToken } from "@/lib/api";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 export default function LoginPage() {
+  usePageTitle("Sign In");
   const router = useRouter();
   const [email, setEmail] = useState("admin@demo.com");
   const [password, setPassword] = useState("demo1234");

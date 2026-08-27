@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search, MoreHorizontal, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Plus, Search, MoreHorizontal, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Dialog,
   DialogContent,
@@ -30,16 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EntityFormFields } from "@/components/entity-form-fields";
 import { useToast } from "@/components/ui/toast";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { formatFieldValue, recordLabel, type EntityField } from "@/lib/entity-ui";
 
-type Field = {
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  options?: string[];
-};
+const PAGE_SIZE = 20;
 
 export default function EntityListPage() {
   const params = useParams();
@@ -49,9 +47,10 @@ export default function EntityListPage() {
   const entity = params.entity as string;
 
   const urlSearch = searchParams.get("q") ?? "";
+  const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const [searchInput, setSearchInput] = useState(urlSearch);
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
-  const [schema, setSchema] = useState<{ label: string; pluralLabel: string; fields: Field[] } | null>(null);
+  const [schema, setSchema] = useState<{ label: string; pluralLabel: string; fields: EntityField[] } | null>(null);
   const [total, setTotal] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -59,17 +58,20 @@ export default function EntityListPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  usePageTitle(schema?.pluralLabel ?? entity);
+
   useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
+      const nextParams = new URLSearchParams(searchParams.toString());
       const trimmed = searchInput.trim();
-      if (trimmed) params.set("q", trimmed);
-      else params.delete("q");
-      const next = params.toString();
+      if (trimmed) nextParams.set("q", trimmed);
+      else nextParams.delete("q");
+      nextParams.delete("page");
+      const next = nextParams.toString();
       const current = searchParams.toString();
       if (next !== current) {
         router.replace(next ? `?${next}` : "?", { scroll: false });
@@ -78,11 +80,21 @@ export default function EntityListPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput, router, searchParams]);
 
+  const setPage = useCallback(
+    (nextPage: number) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (nextPage <= 1) nextParams.delete("page");
+      else nextParams.set("page", String(nextPage));
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [listResult, schemaResult] = await Promise.all([
-        api.list(entity, { search: urlSearch || undefined }),
+        api.list(entity, { search: urlSearch || undefined, page }),
         api.getSchema(entity),
       ]);
       setRecords(listResult.data);
@@ -97,7 +109,7 @@ export default function EntityListPage() {
     } finally {
       setLoading(false);
     }
-  }, [entity, urlSearch, toast]);
+  }, [entity, urlSearch, page, toast]);
 
   useEffect(() => {
     load();
@@ -124,11 +136,15 @@ export default function EntityListPage() {
           delete payload[field.name];
         }
       }
-      await api.create(entity, payload);
+      const created = await api.create(entity, payload);
       setShowForm(false);
       setFormData({});
-      load();
       toast({ title: `${schema?.label ?? "Record"} created` });
+      if (created.id) {
+        router.push(`/entities/${entity}/${created.id}`);
+      } else {
+        load();
+      }
     } catch (err) {
       toast({
         title: "Create failed",
@@ -162,17 +178,12 @@ export default function EntityListPage() {
     [schema],
   );
 
-  function recordLabel(record: Record<string, unknown>): string {
-    const name = record.name ?? record.title ?? record.label ?? record.id;
-    return name ? String(name) : "this record";
-  }
-
   return (
     <div className="p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{schema?.pluralLabel ?? entity}</h1>
-          <p className="text-sm text-muted-foreground tabular-nums">{loading ? "Loading…" : `${total} records`}</p>
+          <p className="text-sm text-muted-foreground tabular-nums">{loading ? "Loading…" : `${total.toLocaleString()} records`}</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative">
@@ -200,65 +211,7 @@ export default function EntityListPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {schema.fields.map((field) => (
-                <div key={field.name} className={field.type === "text" || field.type === "json" ? "md:col-span-2" : ""}>
-                  <Label htmlFor={field.name}>{field.label}</Label>
-                  {field.type === "json" ? (
-                    <textarea
-                      id={field.name}
-                      name={field.name}
-                      className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      placeholder='JSON, e.g. [{"field": "stage", "op": "eq", "value": "won"}]…'
-                      value={(formData[field.name] as string) ?? ""}
-                      onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-                    />
-                  ) : field.type === "select" ? (
-                    <select
-                      id={field.name}
-                      name={field.name}
-                      className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={(formData[field.name] as string) ?? ""}
-                      onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-                      required={field.required}
-                    >
-                      <option value="">Select…</option>
-                      {field.options?.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  ) : field.type === "boolean" ? (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={field.name}
-                        name={field.name}
-                        checked={(formData[field.name] as boolean) ?? false}
-                        onChange={(e) => setFormData({ ...formData, [field.name]: e.target.checked })}
-                        className="h-4 w-4 rounded border-input"
-                      />
-                      <Label htmlFor={field.name} className="font-normal text-muted-foreground">
-                        Enable {field.label.toLowerCase()}
-                      </Label>
-                    </div>
-                  ) : (
-                    <Input
-                      id={field.name}
-                      name={field.name}
-                      className="mt-1.5"
-                      type={field.type === "number" || field.type === "currency" ? "number" : field.type === "date" ? "date" : "text"}
-                      value={(formData[field.name] as string) ?? ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          [field.name]:
-                            field.type === "number" || field.type === "currency" ? Number(e.target.value) : e.target.value,
-                        })
-                      }
-                      required={field.required}
-                    />
-                  )}
-                </div>
-              ))}
+              <EntityFormFields fields={schema.fields} formData={formData} onChange={setFormData} />
               <div className="flex gap-2 md:col-span-2">
                 <Button type="submit" className="touch-manipulation">Create</Button>
                 <Button type="button" variant="outline" className="touch-manipulation" onClick={() => setShowForm(false)}>
@@ -300,49 +253,62 @@ export default function EntityListPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border/80 shadow-elevated">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {displayFields.map((f) => (
-                  <TableHead key={f.name}>{f.label}</TableHead>
-                ))}
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {records.map((record) => (
-                <TableRow key={record.id as string}>
+        <>
+          <div className="overflow-hidden rounded-lg border border-border/80 shadow-elevated">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {displayFields.map((f) => (
-                    <TableCell key={f.name} className="max-w-[200px] truncate">
-                      {formatValue(record[f.name], f.type)}
-                    </TableCell>
+                    <TableHead key={f.name}>{f.label}</TableHead>
                   ))}
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 touch-manipulation" aria-label="Row actions">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() =>
-                            setDeleteTarget({ id: record.id as string, label: recordLabel(record) })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {records.map((record) => (
+                  <TableRow
+                    key={record.id as string}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/entities/${entity}/${record.id}`)}
+                  >
+                    {displayFields.map((f) => (
+                      <TableCell key={f.name} className="max-w-[200px] truncate">
+                        {formatFieldValue(record[f.name], f.type)}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 touch-manipulation" aria-label="Row actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/entities/${entity}/${record.id}`} className="flex items-center gap-2">
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                              View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() =>
+                              setDeleteTarget({ id: record.id as string, label: recordLabel(record) })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} className="mt-4" />
+        </>
       )}
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
@@ -365,16 +331,4 @@ export default function EntityListPage() {
       </Dialog>
     </div>
   );
-}
-
-function formatValue(value: unknown, type?: string): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") {
-    if (type === "currency") {
-      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-    }
-    return value.toLocaleString();
-  }
-  return String(value);
 }
