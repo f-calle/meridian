@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Sparkles } from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface AiChatProps {
   open: boolean;
@@ -21,12 +22,17 @@ export function AiChat({ open, onOpenChange }: AiChatProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (open) {
+      window.setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open]);
 
   async function send() {
     if (!input.trim() || loading) return;
@@ -38,61 +44,88 @@ export function AiChat({ open, onOpenChange }: AiChatProps) {
       const result = await api.chat(userMsg, messages);
       setMessages((m) => [...m, { role: "assistant", content: result.response }]);
     } catch (err) {
-      setMessages((m) => [...m, { role: "assistant", content: `Error: ${(err as Error).message}` }]);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: `Something went wrong. Check your API connection and try again. (${(err as Error).message})`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      send();
+    }
+  }
+
   return (
-    <div className="fixed right-0 top-0 z-50 flex h-full w-96 flex-col border-l border-border bg-card shadow-2xl">
-      <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-semibold">AI Assistant</span>
-        </div>
-        <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            <Sparkles className="h-8 w-8 mx-auto mb-3 text-primary/50" />
-            <p>Ask me anything about your CRM and projects.</p>
-            <p className="mt-2 text-xs">Try: &quot;List all deals over $10k&quot;</p>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+        <SheetHeader className="shrink-0">
+          <SheetTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+            AI Assistant
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4" role="log" aria-live="polite" aria-relevant="additions">
+            {messages.length === 0 && (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                <Sparkles className="mx-auto mb-3 h-8 w-8 text-primary/50" aria-hidden="true" />
+                <p>Ask me anything about your CRM and projects.</p>
+                <p className="mt-2 text-xs">Try: &quot;List all deals over $10k&quot;</p>
+              </div>
+            )}
+            {messages.map((msg, i) => (
+              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                    msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground",
+                  )}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start" aria-live="polite">
+                <div className="rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">Thinking…</div>
+              </div>
+            )}
+            <div ref={bottomRef} />
           </div>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary"
-              }`}
+
+          <div className="flex shrink-0 gap-2 border-t border-border/80 p-4">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Meridian AI…"
+              disabled={loading}
+              rows={2}
+              className="flex min-h-[44px] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-base sm:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Message to AI assistant"
+            />
+            <Button
+              size="icon"
+              className="shrink-0 touch-manipulation"
+              onClick={send}
+              disabled={loading || !input.trim()}
+              aria-label="Send message"
             >
-              {msg.content}
-            </div>
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">Thinking...</div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-      <div className="border-t border-border p-4 flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Ask Meridian AI..."
-          disabled={loading}
-        />
-        <Button size="icon" onClick={send} disabled={loading || !input.trim()}>
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

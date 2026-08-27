@@ -17,14 +17,53 @@
     --accent: 217 33% 17%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62% 50%;
+    --destructive-foreground: 210 40% 98%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 217 91% 60%;
     --radius: 0.5rem;
+    --shadow-ambient: 0 1px 2px hsl(222 47% 4% / 0.4);
+    --shadow-direct: 0 4px 12px hsl(222 47% 4% / 0.35);
+    --shadow-elevated: var(--shadow-ambient), var(--shadow-direct);
   }
 }
 
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: hsl(217 91% 60% / 0.2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
 }
