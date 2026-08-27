@@ -1,103 +1,85 @@
 # Meridian Railway Deployment Guide
 
-Deploy Meridian to Railway using the same pattern as Adilade: Docker Compose locally, Railway in production, all configuration via env vars.
-
-## Prerequisites
-
-- [Railway account](https://railway.app)
-- GitHub repository connected to Railway
-- Anthropic API key (for AI features)
+One Railway project, four services built from this repo's Dockerfiles, plus
+managed Postgres and Redis. All configuration is env vars; migrations and
+seeding run automatically on API boot.
 
 ## Service Layout
 
-| Service | Dockerfile | Public? | Port |
+| Service | Dockerfile | Public? | Notes |
 |---|---|---|---|
-| web | `apps/web/Dockerfile` | Yes | 3000 |
-| api | `apps/api/Dockerfile` | No | 3001 |
-| worker | `apps/worker/Dockerfile` | No | — |
-| mcp | `apps/mcp/Dockerfile` | No | 8080 |
-| PostgreSQL | Railway plugin | No | — |
-| Redis | Railway plugin | No | — |
+| web | `apps/web/Dockerfile` | Yes | Next.js UI |
+| api | `apps/api/Dockerfile` | Yes | The browser calls it directly; CORS locks it to the web origin |
+| worker | `apps/worker/Dockerfile` | No | BullMQ jobs |
+| mcp | `apps/mcp/Dockerfile` | **Never** | No auth of its own — private networking only |
+| Postgres | Railway template | No | provides `DATABASE_URL` |
+| Redis | Railway template | No | provides `REDIS_URL` |
 
-## Step-by-Step Deploy
+Each service is created from the same repo; what distinguishes them is the
+service variable `RAILWAY_DOCKERFILE_PATH` (e.g. `apps/api/Dockerfile`).
 
-### 1. Create Railway Project
-
-```bash
-railway login
-railway init
-```
-
-### 2. Add Database Plugins
-
-In the Railway dashboard:
-- Add **PostgreSQL** plugin
-- Add **Redis** plugin
-
-Railway auto-injects `DATABASE_URL` and `REDIS_URL`.
-
-### 3. Deploy Services
-
-Create four services from the repo, each pointing to its Dockerfile:
-
-- **web** → `apps/web/Dockerfile`
-- **api** → `apps/api/Dockerfile`
-- **worker** → `apps/worker/Dockerfile`
-- **mcp** → `apps/mcp/Dockerfile`
-
-Only expose **web** publicly. All other services use Railway private networking.
-
-### 4. Set Environment Variables
-
-Copy from [`.env.example`](../.env.example):
+## Environment Variables
 
 | Variable | Service | Value |
 |---|---|---|
-| `DATABASE_URL` | api, worker, mcp | Auto-injected by Postgres plugin |
-| `REDIS_URL` | api, worker | Auto-injected by Redis plugin |
-| `API_URL` | web | `http://api.railway.internal:3001` |
-| `MCP_URL` | web, worker | `http://mcp.railway.internal:8080` |
-| `NEXT_PUBLIC_API_URL` | web | Your public API URL or internal |
-| `NEXT_PUBLIC_APP_URL` | web | `https://your-app.up.railway.app` |
-| `AUTH_SECRET` | api | Long random string (signs session tokens) |
-| `ANTHROPIC_API_KEY` | api | Your Anthropic key |
-| `MERIDIAN_LLM_MODEL` | api | `claude-sonnet-4-20250514` |
+| `DATABASE_URL` | api, worker, mcp | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | api, worker | `${{Redis.REDIS_URL}}` |
+| `AUTH_SECRET` | api | long random string (`openssl rand -hex 32`) — required |
+| `AUTO_MIGRATE` | api | `true` — creates/updates tables on boot (idempotent) |
+| `AUTO_SEED` | api | `true` for the demo tenant; remove for a blank instance |
+| `NEXT_PUBLIC_API_URL` | web | the api service's public URL (build-time) |
+| `NEXT_PUBLIC_APP_URL` | web, api | the web service's public URL (build-time on web; CORS origin on api) |
+| `ANTHROPIC_API_KEY` | api | optional — enables AI chat + LLM briefings |
+| `MERIDIAN_LLM_MODEL` | api | optional model override |
+| `WORKER_CONCURRENCY` | worker | optional, default 5 |
 
-### 5. Run Migrations
+`NEXT_PUBLIC_*` values are inlined into the web bundle at build time — the
+web Dockerfile declares them as build args, and Railway passes service
+variables to Docker builds, so setting them as web service variables is
+enough. Changing them requires a redeploy of web.
+
+## Deploy with the CLI
 
 ```bash
-railway run pnpm db:migrate
-railway run pnpm db:seed
+railway login            # or set RAILWAY_API_TOKEN
+railway init --name meridian
+railway add --database postgres
+railway add --database redis
+# create each app service from the repo, e.g.:
+railway add --service api --variables RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile
+railway up --service api   # repeat for worker, mcp, web
+# generate public domains for web and api:
+railway domain --service web
+railway domain --service api
 ```
 
-### 6. Verify
+Then set the variables from the table above (`railway variables --set ... --service <name>`)
+and redeploy web so the `NEXT_PUBLIC_*` values bake in.
 
-- Web: `https://your-app.up.railway.app`
-- API health (internal): `http://api.railway.internal:3001/health`
-- MCP health (internal): `http://mcp.railway.internal:8080/health`
+## Deploy from the Dashboard
 
-Login with seeded credentials: `admin@demo.com` / `demo1234`
+1. New Project → Deploy from GitHub repo → pick `f-calle/meridian` (repeat to add four services from the same repo).
+2. On each service → Settings → Build, or add the `RAILWAY_DOCKERFILE_PATH` variable pointing at that service's Dockerfile.
+3. Add Postgres and Redis from the template gallery.
+4. Set the env vars above; generate public domains for **web** and **api** only.
+
+## Verify
+
+- `https://<api-domain>/health` → `{"status":"ok"}`
+- `https://<web-domain>` → login with `admin@demo.com` / `demo1234` (if `AUTO_SEED=true`)
 
 ## Security Notes
 
-- **Never expose MCP publicly** — it has no auth of its own
-- API should use Railway private networking; web proxies authenticated requests
-- Rotate `AUTH_SECRET` and demo credentials in production
+- **Never expose mcp publicly** — it has no auth of its own
+- Set a strong `AUTH_SECRET`; the API refuses to run in production without one
+- Change the demo password after first login (or set `DEMO_ADMIN_PASSWORD` before first boot, or skip `AUTO_SEED`)
 
 ## Local Development Parity
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
-pnpm db:migrate
-pnpm db:seed
+# migrations/seed run automatically if AUTO_MIGRATE/AUTO_SEED are set;
+# otherwise: pnpm db:migrate && pnpm db:seed
 # → http://localhost:3000
 ```
-
-## Cost Estimates
-
-| Tier | Services | Est. Cost |
-|---|---|---|
-| Dev/staging | web + api + Postgres | ~$5–10/mo |
-| Small business | All services | ~$20–40/mo |
-| Growth | Scaled replicas | Usage-based |

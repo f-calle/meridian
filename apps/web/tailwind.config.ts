@@ -3,6 +3,12 @@ export default {
   darkMode: ["class"],
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
+    fontFamily: {
+      sans: [
+        "Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI",
+        "Roboto", "Helvetica Neue", "Arial", "sans-serif",
+      ],
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",

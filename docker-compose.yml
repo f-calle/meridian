@@ -35,6 +35,9 @@ services:
       DATABASE_URL: postgres://meridian:${POSTGRES_PASSWORD:-meridian_local_dev}@postgres:5432/meridian
       REDIS_URL: redis://redis:6379
       PORT: 3001
+      AUTO_MIGRATE: "true"
+      AUTO_SEED: "true"
+      AUTH_SECRET: ${AUTH_SECRET:-local-dev-secret}
     depends_on:
       postgres:
         condition: service_healthy

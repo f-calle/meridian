@@ -20,6 +20,7 @@ import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
 import { OdooAdapter, importCsv, CSV_PRESETS } from "@meridian/migration";
 import { AgentOrchestrator, generateBriefing } from "@meridian/ai";
+import { runMigrations, seedDemoTenant } from "@meridian/core";
 import { hooks as examplePluginHooks } from "meridian-example-plugin";
 import type { ActorContext } from "@meridian/core";
 
@@ -367,6 +368,22 @@ function getActor(c: { req: { header: (name: string) => string | undefined } }):
 }
 
 const port = Number(process.env.PORT ?? 3001);
-console.log(`Meridian API starting on port ${port}`);
 
+if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
+  console.error("FATAL: AUTH_SECRET must be set in production — refusing to start");
+  process.exit(1);
+}
+
+// Railway-friendly bootstrap: migrate/seed on boot when enabled, no shell needed
+if (process.env.AUTO_MIGRATE === "true") {
+  console.log("AUTO_MIGRATE=true — running migrations");
+  await runMigrations();
+  console.log("Migrations complete");
+}
+if (process.env.AUTO_SEED === "true") {
+  const seeded = await seedDemoTenant();
+  console.log(seeded ? "Seeded demo tenant (admin@demo.com)" : "Demo tenant already present, seed skipped");
+}
+
+console.log(`Meridian API starting on port ${port}`);
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });

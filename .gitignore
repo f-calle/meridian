@@ -9,3 +9,4 @@ dist/
 coverage/
 drizzle/
 *.tsbuildinfo
+.ccr-ca.crt
