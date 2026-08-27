@@ -19,6 +19,9 @@ import {
   Menu,
   Columns3,
   Settings as SettingsIcon,
+  FileText,
+  Receipt,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -35,6 +38,9 @@ const navItems = [
   { href: "/entities/contact", label: "Contacts", icon: Users },
   { href: "/entities/company", label: "Companies", icon: Building2 },
   { href: "/entities/deal", label: "Deals", icon: Target },
+  { href: "/entities/quote", label: "Quotes", icon: FileText },
+  { href: "/entities/invoice", label: "Invoices", icon: Receipt },
+  { href: "/entities/product", label: "Products", icon: Package },
   { href: "/pipeline", label: "Pipeline", icon: Columns3 },
   { href: "/entities/activity", label: "Activities", icon: Clock },
   { section: "Projects" },
@@ -43,7 +49,7 @@ const navItems = [
   { href: "/entities/time_entry", label: "Time Entries", icon: Clock },
   { href: "/entities/milestone", label: "Milestones", icon: Flag },
   { section: "Tools" },
-  { href: "/entities/automation", label: "Automations", icon: Sparkles },
+  { href: "/automations", label: "Automations", icon: Sparkles },
   { href: "/migration", label: "Import from Odoo", icon: Import },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];

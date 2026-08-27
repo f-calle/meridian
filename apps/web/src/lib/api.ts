@@ -22,6 +22,18 @@ export function clearToken() {
   localStorage.removeItem("meridian_token");
 }
 
+/** Decode the signed token's payload (name/email/role) for display purposes. */
+export function getCurrentUser(): { id?: string; name?: string; email?: string; role?: string } | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const body = token.split(".")[0];
+    return JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
@@ -55,11 +67,24 @@ export const api = {
       `/api/entities/${entity}/schema`,
     ),
 
-  list: (entity: string, params?: { page?: number; pageSize?: number; search?: string }) => {
+  list: (
+    entity: string,
+    params?: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: "asc" | "desc";
+      filters?: Record<string, string>;
+    },
+  ) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
     if (params?.search) qs.set("search", params.search);
+    if (params?.sortBy) qs.set("sortBy", params.sortBy);
+    if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+    for (const [k, v] of Object.entries(params?.filters ?? {})) qs.set(`filter.${k}`, v);
     return apiFetch<{ data: Record<string, unknown>[]; total: number; page: number; pageSize: number }>(
       `/api/${entity}/list?${qs}`,
     );
@@ -142,6 +167,39 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+
+  csvMap: (csv: string, entity?: string) =>
+    apiFetch<{
+      entity: string;
+      mapping: { column: string; field: string }[];
+      externalIdColumn?: string;
+      unmapped: { column: string; reason: string }[];
+    }>("/api/ai/migration/map", { method: "POST", body: JSON.stringify({ csv, entity }) }),
+
+  csvImport: (payload: {
+    csv: string;
+    entity: string;
+    mapping: { column: string; field: string }[];
+    externalIdColumn?: string;
+    sourceSystem?: string;
+    dryRun?: boolean;
+  }) =>
+    apiFetch<{ entity: string; created: number; updated: number; skipped: number; errors: string[] }>(
+      "/api/migration/csv/import",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+  documentPdf: async (entity: string, id: string): Promise<Blob> => {
+    const token = getToken();
+    const res = await fetch(`${API_URL}/api/documents/${entity}/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as { error?: string }).error ?? "PDF generation failed");
+    }
+    return res.blob();
+  },
 
   draftAutomation: (prompt: string) =>
     apiFetch<AutomationDraft>("/api/ai/automation/draft", {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Import,
@@ -19,11 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { cn } from "@/lib/utils";
+import { CsvImportCard } from "@/components/csv-import-card";
 
 type Step = "connect" | "preview" | "import" | "report";
 
 interface ImportResultRow {
   entity: string;
+  sourceCount?: number;
   created: number;
   updated: number;
   skipped: number;
@@ -36,6 +38,7 @@ interface MigrationReport {
   status?: string;
   dryRun?: boolean;
   results?: ImportResultRow[];
+  limitations?: string[];
   startedAt?: string;
   completedAt?: string;
 }
@@ -74,6 +77,12 @@ export default function MigrationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastDryRun, setLastDryRun] = useState<boolean | null>(null);
+  const [sourceTab, setSourceTab] = useState<"odoo" | "csv">("odoo");
+  const [entities, setEntities] = useState<{ name: string; label: string; pluralLabel: string }[]>([]);
+
+  useEffect(() => {
+    api.getEntities().then((r) => setEntities(r.entities)).catch(() => {});
+  }, []);
 
   const step: Step = report
     ? "report"
@@ -130,6 +139,9 @@ export default function MigrationPage() {
   const totalCreated = reportResults.reduce((sum, r) => sum + (r.created ?? 0), 0);
   const totalUpdated = reportResults.reduce((sum, r) => sum + (r.updated ?? 0), 0);
   const totalErrors = reportResults.reduce((sum, r) => sum + (r.errors?.length ?? 0), 0);
+  const totalSource = reportResults.reduce((sum, r) => sum + (r.sourceCount ?? 0), 0);
+  const totalMigrated = reportResults.reduce((sum, r) => sum + (r.created ?? 0) + (r.updated ?? 0), 0);
+  const coveragePct = totalSource > 0 ? Math.round((totalMigrated / totalSource) * 100) : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl p-6 md:p-8">
@@ -138,10 +150,31 @@ export default function MigrationPage() {
           <Import className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Import from Odoo</h1>
-          <p className="text-sm text-muted-foreground">Migrate your CRM and project data into Meridian</p>
+          <h1 className="text-2xl font-bold tracking-tight">Bring your data</h1>
+          <p className="text-sm text-muted-foreground">Migrate from Odoo directly, or import any CSV export</p>
         </div>
       </header>
+
+      <div className="mb-6 inline-flex rounded-lg border border-border/80 bg-muted/30 p-1" role="tablist">
+        {([["odoo", "From Odoo"], ["csv", "From CSV"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={sourceTab === key}
+            onClick={() => setSourceTab(key)}
+            className={cn(
+              "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+              sourceTab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {sourceTab === "csv" && <CsvImportCard entities={entities} />}
+
+      <div className={sourceTab === "csv" ? "hidden" : undefined}>
 
       <nav aria-label="Migration progress" className="mb-8">
         <ol className="flex flex-wrap items-center gap-2">
@@ -328,8 +361,10 @@ export default function MigrationPage() {
                 <dd className="mt-1 tabular-nums text-2xl font-bold">{totalUpdated.toLocaleString()}</dd>
               </div>
               <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
-                <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entities</dt>
-                <dd className="mt-1 tabular-nums text-2xl font-bold">{reportResults.length}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Coverage</dt>
+                <dd className={cn("mt-1 tabular-nums text-2xl font-bold", coveragePct !== null && coveragePct >= 95 && "text-green-500")}>
+                  {coveragePct !== null ? `${coveragePct}%` : "—"}
+                </dd>
               </div>
               <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
                 <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Errors</dt>
@@ -349,6 +384,7 @@ export default function MigrationPage() {
                       <th className="px-4 py-3 font-semibold">Updated</th>
                       <th className="px-4 py-3 font-semibold">Skipped</th>
                       <th className="px-4 py-3 font-semibold">Errors</th>
+                      <th className="px-4 py-3 font-semibold">Coverage</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -359,6 +395,11 @@ export default function MigrationPage() {
                         <td className="px-4 py-3 tabular-nums">{row.updated.toLocaleString()}</td>
                         <td className="px-4 py-3 tabular-nums">{row.skipped.toLocaleString()}</td>
                         <td className="px-4 py-3 tabular-nums">{row.errors?.length ?? 0}</td>
+                        <td className="px-4 py-3 tabular-nums">
+                          {row.sourceCount
+                            ? `${Math.min(100, Math.round(((row.created + row.updated) / row.sourceCount) * 100))}%`
+                            : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -375,6 +416,17 @@ export default function MigrationPage() {
                     </div>
                   ))}
               </dl>
+            )}
+
+            {(report.limitations?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-border/80 bg-muted/20 p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-semibold uppercase tracking-wider">Known limitations</p>
+                <ul className="list-inside list-disc space-y-0.5">
+                  {report.limitations!.map((l, i) => (
+                    <li key={i}>{l}</li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {reportResults.some((r) => r.errors?.length > 0) && (
@@ -423,6 +475,7 @@ export default function MigrationPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }

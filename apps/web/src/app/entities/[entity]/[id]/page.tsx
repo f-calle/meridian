@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Pencil, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, FileDown, Loader2, Pencil, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { EntityFormFields } from "@/components/entity-form-fields";
 import { EntityAuditTimeline } from "@/components/entity-audit-timeline";
+import { EntityComments } from "@/components/entity-comments";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -178,6 +179,25 @@ export default function EntityDetailPage() {
         <div className="flex flex-wrap gap-2">
           {!editing ? (
             <>
+              {(entity === "quote" || entity === "invoice") && (
+                <Button
+                  variant="outline"
+                  className="touch-manipulation"
+                  onClick={async () => {
+                    try {
+                      const blob = await api.documentPdf(entity, id);
+                      const url = URL.createObjectURL(blob);
+                      window.open(url, "_blank");
+                      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                    } catch (err) {
+                      toast({ title: "PDF failed", description: (err as Error).message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  <FileDown className="mr-2 h-4 w-4" aria-hidden="true" />
+                  PDF
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setEditing(true)} className="touch-manipulation">
                 <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
                 Edit
@@ -238,7 +258,8 @@ export default function EntityDetailPage() {
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-4">
+        <div className="space-y-6 lg:col-span-4">
+          <EntityComments entity={entity} recordId={id} />
           <EntityAuditTimeline entity={entity} recordId={id} compact />
         </div>
       </div>

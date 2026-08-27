@@ -19,10 +19,11 @@ import {
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
-import { OdooAdapter, importCsv, CSV_PRESETS } from "@meridian/migration";
-import { AgentOrchestrator, generateBriefing, draftAutomation } from "@meridian/ai";
+import { OdooAdapter, importCsv, parseCsv, CSV_PRESETS } from "@meridian/migration";
+import { AgentOrchestrator, generateBriefing, draftAutomation, draftCsvMapping } from "@meridian/ai";
 import { isLoginBlocked, recordLoginFailure, clearLoginFailures } from "./rate-limit.js";
 import { registerUserRoutes } from "./users.js";
+import { registerPdfRoutes } from "./pdf.js";
 import { runMigrations, seedDemoTenant } from "@meridian/core";
 import { hooks as examplePluginHooks } from "meridian-example-plugin";
 import type { ActorContext } from "@meridian/core";
@@ -336,6 +337,7 @@ app.post("/api/ai/chat", async (c) => {
 });
 
 registerUserRoutes(app, getActor);
+registerPdfRoutes(app, getActor);
 
 // Draft an automation rule from an English description
 app.post("/api/ai/automation/draft", async (c) => {
@@ -372,6 +374,32 @@ app.get("/api/ai/briefing", async (c) => {
     return c.json(briefing);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// AI column mapping for arbitrary CSV files
+app.post("/api/ai/migration/map", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return c.json({ error: "AI not configured — set ANTHROPIC_API_KEY" }, 503);
+  }
+
+  let body: { csv?: string; entity?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!body.csv?.trim()) return c.json({ error: "csv is required" }, 400);
+
+  try {
+    const { headers, rows } = parseCsv(body.csv);
+    if (headers.length === 0) return c.json({ error: "Could not read any columns from the CSV" }, 400);
+    const draft = await draftCsvMapping(headers, rows.slice(0, 3), body.entity);
+    return c.json(draft);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
   }
 });
 
@@ -441,7 +469,7 @@ app.post("/api/migration/odoo/connect", async (c) => {
       mappings.map(async (m) => ({
         model: m.odooModel,
         entity: m.meridianEntity,
-        count: await adapter.fetchModelCount(m.odooModel),
+        count: await adapter.fetchModelCount(m.odooModel, OdooAdapter.domainFor(m)),
       })),
     );
     return c.json({ connected: true, models: counts });

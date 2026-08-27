@@ -108,3 +108,20 @@ describe("importCsv (dry run)", () => {
     expect(result.skipped).toBe(1);
   });
 });
+
+describe("Odoo mapping transforms", () => {
+  it("maps quote and invoice statuses and dates", async () => {
+    const { ODOO_MODEL_MAPPINGS } = await import("./index.js");
+    const quote = ODOO_MODEL_MAPPINGS.find((m) => m.meridianEntity === "quote")!;
+    const invoice = ODOO_MODEL_MAPPINGS.find((m) => m.meridianEntity === "invoice")!;
+    const product = ODOO_MODEL_MAPPINGS.find((m) => m.meridianEntity === "product")!;
+    expect(quote.fields.find((f) => f.meridianField === "status")!.transform!("sale")).toBe("accepted");
+    expect(quote.fields.find((f) => f.meridianField === "status")!.transform!("cancel")).toBe("declined");
+    expect(invoice.fields.find((f) => f.meridianField === "status")!.transform!("paid")).toBe("paid");
+    expect(invoice.fields.find((f) => f.meridianField === "status")!.transform!("not_paid")).toBe("sent");
+    expect(quote.fields.find((f) => f.meridianField === "issueDate")!.transform!("2026-01-15 10:30:00")).toBe("2026-01-15");
+    expect(quote.fields.find((f) => f.meridianField === "companyId")!.transform!([42, "Acme"])).toBe(42);
+    expect(invoice.filter).toEqual({ move_type: "out_invoice" });
+    expect(product.fields.some((f) => f.meridianField === "sku")).toBe(true);
+  });
+});

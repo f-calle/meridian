@@ -19,11 +19,13 @@
     "meridian-example-plugin": "workspace:*",
     "hono": "^4.6.16",
     "drizzle-orm": "^0.38.3",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "pdfkit": "^0.15.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@types/pdfkit": "^0.13.9"
   }
 }

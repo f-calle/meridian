@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RelationLabel, RelationPicker } from "@/components/relation-field";
+import { LineItemsEditor, LineItemsView } from "@/components/line-items-editor";
 import type { EntityField } from "@/lib/entity-ui";
 import { formatFieldValue } from "@/lib/entity-ui";
 
@@ -24,6 +25,9 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
           {mode === "view" ? (
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{field.label}</p>
+              {field.name === "lines" && field.type === "json" ? (
+                <LineItemsView value={formData[field.name]} />
+              ) : (
               <p className="text-sm break-words whitespace-pre-wrap">
                 {field.type === "relation" && field.relation ? (
                   <RelationLabel entity={field.relation} id={formData[field.name] as string | null} />
@@ -31,11 +35,20 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
                   formatFieldValue(formData[field.name], field.type)
                 )}
               </p>
+              )}
             </div>
           ) : (
             <>
               <Label htmlFor={field.name}>{field.label}</Label>
-              {field.type === "relation" && field.relation ? (
+              {field.name === "lines" && field.type === "json" ? (
+                <LineItemsEditor
+                  value={formData[field.name]}
+                  onChange={(lines, subtotal) => {
+                    const tax = Number(formData.tax ?? 0) || 0;
+                    onChange({ ...formData, lines, subtotal, total: Number((subtotal + tax).toFixed(2)) });
+                  }}
+                />
+              ) : field.type === "relation" && field.relation ? (
                 <RelationPicker
                   entity={field.relation}
                   value={(formData[field.name] as string) ?? null}

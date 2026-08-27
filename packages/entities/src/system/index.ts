@@ -35,4 +35,24 @@ export const AutomationEntity = defineEntity({
   },
 });
 
-export const systemEntities = [AutomationEntity];
+/** Free-form comments attached to any record — the timeline's user-authored half. */
+export const CommentEntity = defineEntity({
+  name: "comment",
+  label: "Comment",
+  pluralLabel: "Comments",
+  fields: {
+    relatedEntity: field.string({ required: true, label: "Related Entity" }),
+    relatedId: field.string({ required: true, label: "Related Record" }),
+    body: field.text({ required: true, label: "Comment" }),
+    authorName: field.string({ label: "Author" }),
+    authorId: field.string({ label: "Author ID" }),
+  },
+  permissions: {
+    admin: { create: true, read: true, update: true, delete: true },
+    sales: { create: true, read: true, update: true, delete: false },
+    member: { create: true, read: true, update: true, delete: false },
+    agent: { create: true, read: true, update: false, delete: false },
+  },
+});
+
+export const systemEntities = [AutomationEntity, CommentEntity];

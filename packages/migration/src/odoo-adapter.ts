@@ -2,7 +2,7 @@ import xmlrpc from "xmlrpc";
 import type { ActorContext } from "@meridian/core";
 import { entityService } from "@meridian/core";
 import type { OdooConfig, ModelMapping, ImportResult, MigrationReport } from "./index.js";
-import { ODOO_MODEL_MAPPINGS } from "./index.js";
+import { ODOO_MODEL_MAPPINGS, ODOO_IMPORT_LIMITATIONS } from "./index.js";
 
 export class OdooAdapter {
   private config: OdooConfig;
@@ -29,20 +29,26 @@ export class OdooAdapter {
     });
   }
 
-  async fetchModelCount(model: string): Promise<number> {
+  async fetchModelCount(model: string, domain: unknown[][] = []): Promise<number> {
     if (!this.uid) await this.connect();
 
     const object = xmlrpc.createSecureClient({ url: `${this.config.url}/xmlrpc/2/object` });
     return new Promise((resolve, reject) => {
       object.methodCall(
         "execute_kw",
-        [this.config.database, this.uid, this.config.password, model, "search_count", [[]]],
+        [this.config.database, this.uid, this.config.password, model, "search_count", [domain]],
         (err, result) => {
           if (err) reject(err);
           else resolve(Number(result));
         },
       );
     });
+  }
+
+  static domainFor(mapping: ModelMapping): unknown[][] {
+    return mapping.filter
+      ? Object.entries(mapping.filter).map(([k, v]) => [k, "=", v] as unknown[])
+      : [];
   }
 
   async searchRead(
@@ -81,8 +87,11 @@ export class OdooAdapter {
     actor: ActorContext,
     dryRun = false,
   ): Promise<ImportResult> {
+    const domain = OdooAdapter.domainFor(mapping);
     const result: ImportResult = {
       entity: mapping.meridianEntity,
+      odooModel: mapping.odooModel,
+      sourceCount: await this.fetchModelCount(mapping.odooModel, domain).catch(() => undefined),
       created: 0,
       updated: 0,
       skipped: 0,
@@ -91,9 +100,6 @@ export class OdooAdapter {
 
     const odooFields = mapping.fields.map((f) => f.odooField);
     const uniqueFields = [...new Set(odooFields), "id"];
-    const domain = mapping.filter
-      ? Object.entries(mapping.filter).map(([k, v]) => [k, "=", v] as unknown[])
-      : [];
 
     let offset = 0;
     const batchSize = 100;
@@ -168,6 +174,7 @@ export class OdooAdapter {
     }
 
     report.status = "completed";
+    report.limitations = ODOO_IMPORT_LIMITATIONS;
     report.completedAt = new Date();
     return report;
   }

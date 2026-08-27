@@ -23,6 +23,9 @@ export interface ModelMapping {
 
 export interface ImportResult {
   entity: string;
+  odooModel?: string;
+  /** Total matching records in the source system (for coverage %) */
+  sourceCount?: number;
   created: number;
   updated: number;
   skipped: number;
@@ -34,6 +37,8 @@ export interface MigrationReport {
   source: string;
   status: "pending" | "running" | "completed" | "failed";
   results: ImportResult[];
+  /** Known gaps, stated plainly so coverage claims are honest */
+  limitations?: string[];
   startedAt: Date;
   completedAt?: Date;
 }
@@ -82,6 +87,47 @@ export const ODOO_MODEL_MAPPINGS: ModelMapping[] = [
     ],
   },
   {
+    odooModel: "product.template",
+    meridianEntity: "product",
+    fields: [
+      { odooField: "name", meridianField: "name" },
+      { odooField: "default_code", meridianField: "sku", transform: (v) => String(v) },
+      { odooField: "list_price", meridianField: "price" },
+      { odooField: "standard_price", meridianField: "cost" },
+      { odooField: "description_sale", meridianField: "description", transform: (v) => String(v) },
+      { odooField: "active", meridianField: "active" },
+    ],
+  },
+  {
+    odooModel: "sale.order",
+    meridianEntity: "quote",
+    fields: [
+      { odooField: "name", meridianField: "number" },
+      { odooField: "partner_id", meridianField: "companyId", transform: firstOfPair, relation: "company" },
+      { odooField: "date_order", meridianField: "issueDate", transform: odooDate },
+      { odooField: "validity_date", meridianField: "expiryDate", transform: odooDate },
+      { odooField: "amount_untaxed", meridianField: "subtotal" },
+      { odooField: "amount_tax", meridianField: "tax" },
+      { odooField: "amount_total", meridianField: "total" },
+      { odooField: "state", meridianField: "status", transform: mapOdooQuoteStatus },
+    ],
+  },
+  {
+    odooModel: "account.move",
+    meridianEntity: "invoice",
+    filter: { move_type: "out_invoice" },
+    fields: [
+      { odooField: "name", meridianField: "number" },
+      { odooField: "partner_id", meridianField: "companyId", transform: firstOfPair, relation: "company" },
+      { odooField: "invoice_date", meridianField: "issueDate", transform: odooDate },
+      { odooField: "invoice_date_due", meridianField: "dueDate", transform: odooDate },
+      { odooField: "amount_untaxed", meridianField: "subtotal" },
+      { odooField: "amount_tax", meridianField: "tax" },
+      { odooField: "amount_total", meridianField: "total" },
+      { odooField: "payment_state", meridianField: "status", transform: mapOdooInvoiceStatus },
+    ],
+  },
+  {
     odooModel: "project.task",
     meridianEntity: "task",
     fields: [
@@ -90,6 +136,43 @@ export const ODOO_MODEL_MAPPINGS: ModelMapping[] = [
       { odooField: "project_id", meridianField: "projectId", transform: (v) => (Array.isArray(v) ? v[0] : v), relation: "project" },
     ],
   },
+];
+
+/** Odoo many2one values arrive as [id, display_name]. */
+function firstOfPair(v: unknown): unknown {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/** Odoo date/datetime strings → ISO date (YYYY-MM-DD). */
+function odooDate(v: unknown): string {
+  return String(v).slice(0, 10);
+}
+
+function mapOdooQuoteStatus(state: unknown): string {
+  const map: Record<string, string> = {
+    draft: "draft",
+    sent: "sent",
+    sale: "accepted",
+    done: "accepted",
+    cancel: "declined",
+  };
+  return map[String(state)] ?? "draft";
+}
+
+function mapOdooInvoiceStatus(paymentState: unknown): string {
+  const map: Record<string, string> = {
+    not_paid: "sent",
+    in_payment: "partial",
+    partial: "partial",
+    paid: "paid",
+    reversed: "cancelled",
+  };
+  return map[String(paymentState)] ?? "draft";
+}
+
+export const ODOO_IMPORT_LIMITATIONS = [
+  "Invoice and quote line items are imported as document totals only in this version — line-level detail stays in Odoo.",
+  "Chatter message history and attachments are not imported yet.",
 ];
 
 function mapOdooStage(stage: unknown): string {
