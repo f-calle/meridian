@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 type Step = "connect" | "preview" | "import" | "report";
 
 export default function MigrationPage() {
+  usePageTitle("Import from Odoo");
   const [config, setConfig] = useState({ url: "", database: "", username: "", password: "" });
   const [connected, setConnected] = useState(false);
   const [models, setModels] = useState<{ model: string; entity: string; count: number }[]>([]);
