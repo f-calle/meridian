@@ -135,7 +135,7 @@ export function summarizeDraft(draft: Omit<AutomationDraft, "summary">): string 
  */
 export async function draftAutomation(prompt: string, model?: string): Promise<AutomationDraft> {
   const result = await generateObject({
-    model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-sonnet-4-20250514"),
+    model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5"),
     schema: buildSchema(),
     system: `You convert plain-English business rules into Meridian automation rules.
 

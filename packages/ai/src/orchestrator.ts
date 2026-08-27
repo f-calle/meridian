@@ -32,7 +32,7 @@ export class AgentOrchestrator {
 
   constructor(actor: ActorContext, model?: string) {
     this.actor = actor;
-    this.model = model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-sonnet-4-20250514";
+    this.model = model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5";
   }
 
   async chat(message: string, history: { role: "user" | "assistant"; content: string }[] = []) {

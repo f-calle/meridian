@@ -89,7 +89,7 @@ export async function generateBriefing(actor: ActorContext, model?: string): Pro
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const result = await generateText({
-        model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-sonnet-4-20250514"),
+        model: anthropic(model ?? process.env.MERIDIAN_LLM_MODEL ?? "claude-opus-5"),
         system:
           "You write short, actionable morning briefings for a business owner. " +
           "3-5 sentences. Lead with what needs attention today. Use plain language, no headers.",
