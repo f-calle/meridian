@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isStaleBuildError } from "@/lib/stale-build";
 
 /**
  * Last-resort error page.
@@ -27,11 +28,7 @@ export default function GlobalError({
     console.error("[meridian] unhandled error", error);
   }, [error]);
 
-  const isStaleBuild =
-    error.name === "ChunkLoadError" ||
-    /Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(
-      error.message,
-    );
+  const isStaleBuild = isStaleBuildError(error);
 
   return (
     <html lang="en">
