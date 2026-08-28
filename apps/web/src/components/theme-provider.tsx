@@ -21,16 +21,18 @@ function applyTheme(theme: Theme) {
   root.style.colorScheme = theme;
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
     meta.removeAttribute("media");
-    meta.setAttribute("content", theme === "dark" ? "#0a0f1a" : "#ffffff");
+    meta.setAttribute("content", theme === "dark" ? "#0f1114" : "#ffffff");
   });
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  // Must match the pre-paint script in app/layout.tsx, or the first render
+  // disagrees with what is already on <html>.
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const initial: Theme = stored === "light" || stored === "dark" ? stored : "dark";
+    const initial: Theme = stored === "light" || stored === "dark" ? stored : "light";
     setThemeState(initial);
     applyTheme(initial);
   }, []);

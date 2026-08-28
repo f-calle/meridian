@@ -14,11 +14,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0f1a" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1114" },
   ],
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('meridian-theme');var d=t==='light'?'light':'dark';document.documentElement.classList.add(d);document.documentElement.style.colorScheme=d;}catch(e){document.documentElement.classList.add('dark');}})();`;
+// Runs before first paint so the stored theme is on <html> ahead of any
+// styled markup — without it the page paints light and then flips.
+// Light is the default: an ERP is a daylight, all-day tool, and a business
+// showing this to a customer should not have to explain why it opened dark.
+const themeScript = `(function(){try{var t=localStorage.getItem('meridian-theme');var d=t==='dark'?'dark':'light';document.documentElement.classList.add(d);document.documentElement.style.colorScheme=d;}catch(e){document.documentElement.classList.add('light');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

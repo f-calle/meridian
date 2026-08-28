@@ -15,27 +15,39 @@
     --viz-critical: #d03b3b;
   }
 
+  /*
+   * Dark surfaces.
+   *
+   * These were a heavily saturated navy — 47% saturation at 6% lightness —
+   * which tinted every surface blue and read as a gamer theme rather than a
+   * tool people spend their working day in. Desaturated to a near-neutral with
+   * a slight cool cast, and the steps between background, card and border
+   * widened so a card actually reads as raised off the page.
+   *
+   * Verified: foreground 15.2:1, muted-foreground 7.5:1 and primary 5.2:1
+   * against the card surface; every chart mark clears 3:1.
+   */
   .dark {
     --viz-series-1: #3987e5;
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
-    --shadow-ambient: 0 1px 2px hsl(222 47% 4% / 0.4);
-    --shadow-direct: 0 4px 12px hsl(222 47% 4% / 0.35);
+    --background: 222 14% 7%;
+    --foreground: 210 20% 97%;
+    --card: 222 12% 13%;
+    --card-foreground: 210 20% 97%;
+    --primary: 217 83% 64%;
+    --primary-foreground: 222 14% 7%;
+    --secondary: 220 11% 20%;
+    --secondary-foreground: 210 20% 97%;
+    --muted: 220 11% 20%;
+    --muted-foreground: 218 12% 70%;
+    --accent: 220 11% 20%;
+    --accent-foreground: 210 20% 97%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 210 20% 97%;
+    --border: 220 11% 24%;
+    --input: 220 11% 24%;
+    --ring: 217 83% 64%;
+    --shadow-ambient: 0 1px 2px hsl(222 20% 3% / 0.5);
+    --shadow-direct: 0 4px 12px hsl(222 20% 3% / 0.45);
     --shadow-elevated: var(--shadow-ambient), var(--shadow-direct);
     color-scheme: dark;
   }
@@ -94,9 +106,9 @@
 
   .shadow-layered {
     box-shadow:
-      0 1px 2px hsl(222 47% 4% / 0.25),
-      0 4px 6px -1px hsl(222 47% 4% / 0.3),
-      0 10px 15px -3px hsl(222 47% 4% / 0.35);
+      0 1px 2px hsl(222 20% 3% / 0.2),
+      0 4px 6px -1px hsl(222 20% 3% / 0.24),
+      0 10px 15px -3px hsl(222 20% 3% / 0.28);
   }
 
   .glass-card {
