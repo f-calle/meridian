@@ -23,7 +23,9 @@ import {
   FileText,
   Receipt,
   Package,
+  ChevronDown,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MeridianLogo } from "@/components/meridian-logo";
@@ -33,59 +35,175 @@ import { AiChat } from "@/components/ai-chat";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { section: "CRM" },
-  { href: "/entities/contact", label: "Contacts", icon: Users },
-  { href: "/entities/company", label: "Companies", icon: Building2 },
-  { href: "/entities/deal", label: "Deals", icon: Target },
-  { href: "/entities/quote", label: "Quotes", icon: FileText },
-  { href: "/entities/invoice", label: "Invoices", icon: Receipt },
-  { href: "/entities/product", label: "Products", icon: Package },
+/**
+ * Navigation.
+ *
+ * This was seventeen flat links, every entity given equal billing, so finding
+ * anything meant reading the whole list. Three changes:
+ *
+ *  - The four things you do every day sit at the top with no header above them.
+ *  - Everything else is grouped and collapsed; the group holding the current
+ *    page opens itself, so the list you are working in is the one you can see.
+ *  - Time entries and milestones are gone. They are sub-objects of a project
+ *    and are reached from one — giving them top-level links padded the sidebar
+ *    with rows nobody clicked.
+ */
+interface NavLeaf {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavLeaf[];
+}
+
+const primaryItems: NavLeaf[] = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/pipeline", label: "Pipeline", icon: Columns3 },
+  { href: "/entities/activity", label: "Activity", icon: Clock },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/entities/activity", label: "Activities", icon: Clock },
-  { section: "Projects" },
-  { href: "/entities/project", label: "Projects", icon: FolderKanban },
-  { href: "/entities/task", label: "Tasks", icon: CheckSquare },
-  { href: "/entities/time_entry", label: "Time Entries", icon: Clock },
-  { href: "/entities/milestone", label: "Milestones", icon: Flag },
-  { section: "Tools" },
+];
+
+const navGroups: NavGroup[] = [
+  {
+    id: "customers",
+    label: "Customers",
+    icon: Users,
+    items: [
+      { href: "/entities/contact", label: "Contacts", icon: Users },
+      { href: "/entities/company", label: "Companies", icon: Building2 },
+      { href: "/entities/deal", label: "Deals", icon: Target },
+    ],
+  },
+  {
+    id: "revenue",
+    label: "Revenue",
+    icon: Receipt,
+    items: [
+      { href: "/entities/quote", label: "Quotes", icon: FileText },
+      { href: "/entities/invoice", label: "Invoices", icon: Receipt },
+      { href: "/entities/product", label: "Products", icon: Package },
+    ],
+  },
+  {
+    id: "delivery",
+    label: "Delivery",
+    icon: FolderKanban,
+    items: [
+      { href: "/entities/project", label: "Projects", icon: FolderKanban },
+      { href: "/entities/task", label: "Tasks", icon: CheckSquare },
+    ],
+  },
+];
+
+const footerItems: NavLeaf[] = [
   { href: "/automations", label: "Automations", icon: Sparkles },
-  { href: "/migration", label: "Import from Odoo", icon: Import },
+  { href: "/migration", label: "Import data", icon: Import },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
+function isActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const linkClass = (active: boolean) =>
+  cn(
+    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors touch-manipulation",
+    active
+      ? "border-l-2 border-primary bg-primary/10 pl-[10px] font-medium text-primary"
+      : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+  );
+
+function NavLeafLink({
+  item,
+  pathname,
+  onNavigate,
+  indented,
+}: {
+  item: NavLeaf;
+  pathname: string;
+  onNavigate?: () => void;
+  indented?: boolean;
+}) {
+  const active = isActive(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(linkClass(active), indented && !active && "pl-9", indented && active && "pl-[34px]")}
+    >
+      {!indented && <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />}
+      {item.label}
+    </Link>
+  );
+}
+
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  // A group containing the current page starts open, so you can always see
+  // where you are without hunting. Anything the user opens by hand stays open.
+  const [manuallyOpen, setManuallyOpen] = useState<Record<string, boolean>>({});
+
   return (
     <>
-      {navItems.map((item, i) =>
-        "section" in item ? (
-          <div
-            key={i}
-            className="select-none px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
-            aria-hidden="true"
-          >
-            {item.section}
-          </div>
-        ) : (
-          <Link
-            key={item.href}
-            href={item.href!}
-            onClick={onNavigate}
-            aria-current={pathname === item.href || pathname.startsWith(`${item.href}/`) ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors touch-manipulation",
-              pathname === item.href || pathname.startsWith(`${item.href}/`)
-                ? "border-l-2 border-primary bg-primary/10 pl-[10px] font-medium text-primary"
-                : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+      {primaryItems.map((item) => (
+        <NavLeafLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+      ))}
+
+      <div className="pt-2" />
+
+      {navGroups.map((group) => {
+        const containsCurrent = group.items.some((item) => isActive(pathname, item.href));
+        const open = manuallyOpen[group.id] ?? containsCurrent;
+        return (
+          <div key={group.id}>
+            <button
+              type="button"
+              onClick={() => setManuallyOpen((state) => ({ ...state, [group.id]: !open }))}
+              aria-expanded={open}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors touch-manipulation",
+                containsCurrent && !open
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+              )}
+            >
+              <group.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {group.label}
+              <ChevronDown
+                className={cn(
+                  "ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none",
+                  open ? "rotate-0" : "-rotate-90",
+                )}
+                aria-hidden="true"
+              />
+            </button>
+            {open && (
+              <div className="mt-0.5 space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLeafLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    onNavigate={onNavigate}
+                    indented
+                  />
+                ))}
+              </div>
             )}
-          >
-            <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {item.label}
-          </Link>
-        ),
-      )}
+          </div>
+        );
+      })}
+
+      <div className="pt-2" />
+
+      {footerItems.map((item) => (
+        <NavLeafLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+      ))}
     </>
   );
 }
@@ -100,28 +218,37 @@ function SidebarFooter({
   onLogout: () => void;
 }) {
   return (
-    <div className="mt-auto space-y-1 border-t border-border/80 p-4">
-      <ThemeToggle className="w-full justify-start gap-2 touch-manipulation" />
+    <div className="mt-auto space-y-1.5 border-t border-border/80 p-3">
       <button
         type="button"
         onClick={onCommandPalette}
         className="flex w-full items-center gap-2 rounded-md border border-border/80 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/40 touch-manipulation"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>Quick search…</span>
+        <span>Search everything…</span>
         <kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] opacity-70">⌘&nbsp;K</kbd>
       </button>
       <button
         type="button"
         onClick={onAiOpen}
-        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5 touch-manipulation"
+        className="flex w-full items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/15 touch-manipulation"
       >
         <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-        Ask Meridian AI
+        Ask Meridian
       </button>
-      <Button variant="ghost" size="sm" className="w-full justify-start gap-2 touch-manipulation" onClick={onLogout}>
-        <LogOut className="h-4 w-4" aria-hidden="true" /> Sign Out
-      </Button>
+      {/* Theme and sign-out are one-tap switches, not destinations — an icon
+          row keeps them reachable without spending two more sidebar lines. */}
+      <div className="flex items-center gap-1 pt-0.5">
+        <ThemeToggle className="h-8 w-8 justify-center p-0 touch-manipulation" iconOnly />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-8 gap-2 px-2 text-muted-foreground touch-manipulation"
+          onClick={onLogout}
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out
+        </Button>
+      </div>
     </div>
   );
 }

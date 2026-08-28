@@ -1,5 +1,56 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3001";
 
+export type AttentionKind =
+  | "invoice_overdue"
+  | "quote_expiring"
+  | "deal_stalled"
+  | "deal_closing"
+  | "activity_overdue"
+  | "task_overdue";
+
+export interface AttentionItem {
+  kind: AttentionKind;
+  entity: string;
+  recordId: string;
+  title: string;
+  detail: string;
+  daysOverdue: number;
+  amount?: number;
+  severity: "critical" | "warning" | "info";
+}
+
+export interface AttentionSummary {
+  items: AttentionItem[];
+  counts: Record<AttentionKind, number>;
+  overdueValue: number;
+}
+
+export interface DashboardMetrics {
+  openCount: number;
+  openValue: number;
+  weightedForecast: number;
+  wonValue: number;
+  wonCount: number;
+  lostCount: number;
+  winRate: number | null;
+  outstandingValue: number;
+  pipeline: { stage: string; count: number; value: number }[];
+}
+
+export interface RelatedGroup {
+  entity: string;
+  label: string;
+  field: string;
+  records: Record<string, unknown>[];
+  total: number;
+  totalValue?: number;
+}
+
+export interface RelatedRecords {
+  groups: RelatedGroup[];
+  rollups: { label: string; value: number; format: "currency" | "number" }[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -114,6 +165,17 @@ export const api = {
       `/api/${entity}/delete/${id}${options.detach ? "?detach=true" : ""}`,
       { method: "DELETE" },
     ),
+
+  /** What needs the user today, ranked. Powers the home page's work queue. */
+  /** The figures the home page leads with. */
+  metrics: () => apiFetch<DashboardMetrics>("/api/dashboard/metrics"),
+
+  attention: (limit = 12) =>
+    apiFetch<AttentionSummary>(`/api/dashboard/attention?limit=${limit}`),
+
+  /** Records pointing at this one, plus rolled-up value. */
+  related: (entity: string, id: string) =>
+    apiFetch<RelatedRecords>(`/api/${entity}/related/${id}`),
 
   briefing: () =>
     apiFetch<{

@@ -9,6 +9,7 @@ import { auditLog } from "../db/schema.js";
 import { getSql } from "../db/raw-sql.js";
 import { ensureEntityTables } from "../db/entity-store.js";
 import { toColumnName } from "../db/naming.js";
+import { compileFilters } from "./filters.js";
 import { detachReferences, findReferences, ReferentialIntegrityError } from "./references.js";
 
 export class EntityService {
@@ -182,17 +183,9 @@ export class EntityService {
     }
 
     if (query.filters) {
-      for (const [fieldName, value] of Object.entries(query.filters)) {
-        if (value === undefined) continue;
-        const col = resolveColumn(entity, fieldName);
-        if (!col) throw new Error(`Unknown filter field: ${fieldName}`);
-        if (value === null) {
-          whereClause += ` AND ${col} IS NULL`;
-        } else {
-          whereClause += ` AND ${col} = $${params.length + 1}`;
-          params.push(value);
-        }
-      }
+      const compiled = compileFilters(entity, query.filters, resolveColumn, params.length);
+      whereClause += compiled.clause;
+      params.push(...compiled.params);
     }
 
     const sortCol = query.sortBy ? resolveColumn(entity, query.sortBy) : "created_at";
@@ -227,8 +220,10 @@ export class EntityService {
     entityName: string,
     options: {
       groupBy?: string;
-      metric?: "count" | "sum" | "avg";
+      metric?: "count" | "sum" | "avg" | "weighted_sum";
       metricField?: string;
+      /** Percentage field weighting a weighted_sum, e.g. a deal's probability. */
+      weightField?: string;
       filters?: Record<string, unknown>;
     },
     actor: ActorContext,
@@ -239,28 +234,35 @@ export class EntityService {
     const metric = options.metric ?? "count";
     let metricExpr = "NULL";
     if (metric !== "count") {
-      if (!options.metricField) throw new Error(`Metric "${metric}" requires metricField`);
-      const def = entity.fields[options.metricField];
-      if (!def || (def.type !== "number" && def.type !== "currency")) {
-        throw new Error(`Field "${options.metricField}" is not numeric`);
+      const numericColumn = (fieldName: string | undefined, role: string): string => {
+        if (!fieldName) throw new Error(`Metric "${metric}" requires ${role}`);
+        const def = entity.fields[fieldName];
+        if (!def || (def.type !== "number" && def.type !== "currency")) {
+          throw new Error(`Field "${fieldName}" is not numeric`);
+        }
+        return toColumnName(fieldName);
+      };
+
+      const valueCol = numericColumn(options.metricField, "metricField");
+      if (metric === "weighted_sum") {
+        // Weighting a pipeline by win probability is the difference between
+        // "we have $2M in play" and "we can expect $600k" — the second is the
+        // number anyone forecasting from this actually needs. COALESCE so a
+        // deal with no probability contributes nothing rather than nulling the
+        // whole sum.
+        const weightCol = numericColumn(options.weightField, "weightField");
+        metricExpr = `SUM(COALESCE(${valueCol}, 0) * COALESCE(${weightCol}, 0) / 100.0)::float`;
+      } else {
+        metricExpr = `${metric.toUpperCase()}(${valueCol})::float`;
       }
-      metricExpr = `${metric.toUpperCase()}(${toColumnName(options.metricField)})::float`;
     }
 
     let whereClause = "tenant_id = $1";
     const params: unknown[] = [actor.tenantId];
     if (options.filters) {
-      for (const [fieldName, value] of Object.entries(options.filters)) {
-        if (value === undefined) continue;
-        const col = resolveColumn(entity, fieldName);
-        if (!col) throw new Error(`Unknown filter field: ${fieldName}`);
-        if (value === null) {
-          whereClause += ` AND ${col} IS NULL`;
-        } else {
-          whereClause += ` AND ${col} = $${params.length + 1}`;
-          params.push(value);
-        }
-      }
+      const compiled = compileFilters(entity, options.filters, resolveColumn, params.length);
+      whereClause += compiled.clause;
+      params.push(...compiled.params);
     }
 
     let groupCol: string | null = null;

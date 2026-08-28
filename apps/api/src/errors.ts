@@ -61,6 +61,12 @@ export function resolveError(err: unknown): ResolvedError {
 
   const message = (err as Error)?.message ?? "";
   if (/not found/i.test(message)) return { status: 404, message, unexpected: false };
+  // Query-shaping errors name a field, sort or operator the caller asked for and
+  // the entity does not have. That is a malformed request, not a server fault,
+  // and the message is safe to return — it only ever quotes what was sent.
+  if (/^Unknown (filter|sort|groupBy|entity)/i.test(message)) {
+    return { status: 400, message, unexpected: false };
+  }
   if (/^Validation failed/.test(message) || /is required|must be|invalid/i.test(message)) {
     return { status: 400, message, unexpected: false };
   }

@@ -18,6 +18,10 @@ import {
   isSessionCurrent,
   startAutomationEngine,
   checkPermission,
+  collectAttention,
+  collectMetrics,
+  collectRelated,
+  parseFilterParams,
 } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { getFormConfig, getListColumns } from "@meridian/ui-schema";
@@ -251,11 +255,8 @@ for (const action of crudActions) {
           const sortBy = c.req.query("sortBy") ?? undefined;
           const sortOrder = c.req.query("sortOrder") === "asc" ? "asc" as const : c.req.query("sortOrder") === "desc" ? "desc" as const : undefined;
 
-          // filter.<field>=value query params become exact-match filters
-          const filters: Record<string, unknown> = {};
-          for (const [key, value] of Object.entries(c.req.query())) {
-            if (key.startsWith("filter.")) filters[key.slice("filter.".length)] = value;
-          }
+          // filter.<field>=value, or filter.<field>.<op>=value for comparisons
+          const filters = parseFilterParams(c.req.query());
 
           const result = await entityService.list(
             entityName,
@@ -456,12 +457,8 @@ app.get("/api/:entity/aggregate", async (c) => {
   const metric =
     metricParam === "sum" || metricParam === "avg" || metricParam === "count" ? metricParam : "count";
 
-  const filters: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(c.req.query())) {
-    if (key.startsWith("filter.")) filters[key.slice("filter.".length)] = value;
-  }
-
   try {
+    const filters = parseFilterParams(c.req.query());
     const rows = await entityService.aggregate(
       entityName,
       {
@@ -488,6 +485,53 @@ app.get("/api/ai/briefing", async (c) => {
       refresh: c.req.query("refresh") === "true",
     });
     return c.json(briefing);
+  } catch (err) {
+    return respondToError(c, err);
+  }
+});
+
+/**
+ * What needs the user today: overdue invoices, lapsing quotes, deals past their
+ * close date, late activities and tasks. This is what the dashboard leads with,
+ * so it is deliberately a single request.
+ */
+app.get("/api/dashboard/attention", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  try {
+    const limit = Math.min(50, Math.max(1, Number(c.req.query("limit") ?? 12)));
+    return c.json(await collectAttention(actor, { limit }));
+  } catch (err) {
+    return respondToError(c, err);
+  }
+});
+
+/** The figures the dashboard leads with: pipeline, forecast, win rate, money owed. */
+app.get("/api/dashboard/metrics", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  try {
+    return c.json(await collectMetrics(actor));
+  } catch (err) {
+    return respondToError(c, err);
+  }
+});
+
+/** Records pointing at this one, plus rolled-up value — for a detail page. */
+app.get("/api/:entity/related/:id", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  const entityName = c.req.param("entity")!;
+  const entity = entityRegistry.get(entityName);
+  if (!entity) return c.json({ error: "Entity not found" }, 404);
+
+  try {
+    // Seeing a record's relations means seeing the record.
+    checkPermission(entity, actor, "read");
+    return c.json(await collectRelated(entityName, c.req.param("id")!, actor));
   } catch (err) {
     return respondToError(c, err);
   }

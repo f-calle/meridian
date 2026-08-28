@@ -67,3 +67,19 @@ describe("resolveError", () => {
     expect(resolved.unexpected).toBe(true);
   });
 });
+
+describe("query-shaping errors", () => {
+  it("reports an unknown filter operator as a bad request", () => {
+    // These name only what the caller sent, so the message is safe to return —
+    // and a 500 would tell them the server broke when their query did.
+    const resolved = resolveError(new Error('Unknown filter operator in "filter.total.drop"'));
+    expect(resolved.status).toBe(400);
+    expect(resolved.message).toContain("filter.total.drop");
+    expect(resolved.unexpected).toBe(false);
+  });
+
+  it("reports an unknown filter or sort field as a bad request", () => {
+    expect(resolveError(new Error("Unknown filter field: password")).status).toBe(400);
+    expect(resolveError(new Error("Unknown sort field: password")).status).toBe(400);
+  });
+});
