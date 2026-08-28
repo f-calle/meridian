@@ -41,6 +41,17 @@ describe("deal.closedAt", () => {
     expect(derive({ value: 5000 }, { stage: "won", closedAt: "2026-03-01" })).toBeUndefined();
   });
 
+  it("respects an explicitly supplied close date", () => {
+    // The import case: an Odoo migration carries the real historical date, and
+    // stamping today over it would rewrite years of history into one afternoon.
+    expect(derive({ stage: "won", closedAt: "2024-06-15" }, undefined)).toBeUndefined();
+    expect(derive({ closedAt: "2024-06-15" }, { stage: "won" })).toBeUndefined();
+  });
+
+  it("allows an explicit null to clear the date", () => {
+    expect(derive({ closedAt: null }, { stage: "won", closedAt: "2026-03-01" })).toBeUndefined();
+  });
+
   it("does nothing when there is no stage to judge", () => {
     expect(derive({ value: 1 }, undefined)).toBeUndefined();
   });

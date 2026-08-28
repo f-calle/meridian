@@ -121,6 +121,12 @@ export const DealEntity = defineEntity({
    * what happened rather than what someone remembered to record.
    */
   derive: (incoming, previous) => {
+    // An explicit value always wins. An Odoo import carries the real historical
+    // close date, and stamping today over it would silently rewrite years of
+    // history into one afternoon — for a product whose pitch is painless
+    // migration, that is the worst possible place to be clever.
+    if (incoming.closedAt !== undefined) return undefined;
+
     const stage = (incoming.stage ?? previous?.stage) as string | undefined;
     if (!stage) return undefined;
     const isClosed = stage === "won" || stage === "lost";

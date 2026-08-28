@@ -13,6 +13,10 @@
  * Idempotent: only ever fills a NULL.
  *
  *   DATABASE_URL=… pnpm tsx scripts/backfill-closed-at.ts [--dry-run]
+ *
+ * Needs direct database access. Where the database is not reachable — a hosted
+ * deployment on a private network — use scripts/backfill-closed-at-api.ts,
+ * which does the same job over the REST API.
  */
 import { getSql, closeSql } from "@meridian/core";
 
