@@ -4,7 +4,8 @@
 
 ## Features
 
-- **CRM**: Contacts, companies, deals, activities, pipelines
+- **A home page that is a work queue**, not a scoreboard: overdue invoices with amount and age, deals past their close date, quotes about to lapse, late activities and tasks — ranked, each row a link to the record. Alongside it the four figures worth steering by, including a probability-weighted forecast rather than raw pipeline
+- **CRM**: Contacts, companies, deals, activities, pipelines — browsable as cards or a table, your choice per entity
 - **Projects**: Projects, tasks, time entries, milestones
 - **AI Assistant**: Natural language CRUD, aggregations ("pipeline value by stage"), confirmed deletes, daily briefings (`GET /api/ai/briefing`)
 - **Automations**: Event-driven rules — "when a deal is updated to won, create a kickoff project". Conditions + actions (`set_field`, `create_record`, `webhook`) with `{{field}}` templating, managed like any other entity at `/entities/automation`
@@ -13,6 +14,8 @@
 - **Multi-tenant**: Row-level isolation with role-based ACL
 - **Secure auth**: HMAC-signed session tokens (`AUTH_SECRET`), scrypt password hashing
 - **Audit Log**: Every mutation tracked with actor and diff
+- **Connected records**: every detail page shows what points at it — a company's deals, people, quotes and invoices, with rolled-up value and outstanding balance
+- **Safe schema changes**: versioned migrations generated from the entity definitions; nothing creates or alters a table at runtime ([docs](docs/schema-migrations.md))
 
 ## Architecture
 
