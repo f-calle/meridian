@@ -18,6 +18,7 @@ import {
 import { EntityFormFields } from "@/components/entity-form-fields";
 import { EntityAuditTimeline } from "@/components/entity-audit-timeline";
 import { EntityComments } from "@/components/entity-comments";
+import { RelatedRecordsPanel } from "@/components/related-records";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
@@ -284,6 +285,10 @@ export default function EntityDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        <div className="lg:col-span-8">
+          <RelatedRecordsPanel entity={entity} id={id} />
+        </div>
 
         <div className="space-y-6 lg:col-span-4">
           <EntityComments entity={entity} recordId={id} />

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Trash2, Eye, X, Download } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Eye, X, Download, LayoutGrid, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,12 +36,39 @@ import { RelationLabel } from "@/components/relation-field";
 import { StatusBadge, isStatusValue } from "@/components/status-badge";
 import { toCsv, downloadCsv } from "@/lib/csv-export";
 import { AiAutomationDialog } from "@/components/ai-automation-dialog";
+import { RecordCard, CARD_DEFAULT_ENTITIES } from "@/components/record-card";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { formatFieldValue, recordLabel, type EntityField } from "@/lib/entity-ui";
 
 const PAGE_SIZE = 20;
+
+type ViewMode = "cards" | "table";
+
+const VIEW_STORAGE_PREFIX = "meridian_view_";
+
+function readStoredView(entity: string): ViewMode {
+  const fallback: ViewMode = CARD_DEFAULT_ENTITIES.has(entity) ? "cards" : "table";
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = window.localStorage.getItem(`${VIEW_STORAGE_PREFIX}${entity}`);
+    return stored === "cards" || stored === "table" ? stored : fallback;
+  } catch {
+    // Private windows and blocked site data throw on access; the default view
+    // is a preference, not something worth failing a page render over.
+    return fallback;
+  }
+}
+
+function storeView(entity: string, view: ViewMode): void {
+  try {
+    window.localStorage.setItem(`${VIEW_STORAGE_PREFIX}${entity}`, view);
+  } catch {
+    /* preference simply is not remembered */
+  }
+}
 
 export default function EntityListPage() {
   const params = useParams();
@@ -51,6 +78,20 @@ export default function EntityListPage() {
   const entity = params.entity as string;
 
   const urlSearch = searchParams.get("q") ?? "";
+  // filter.<field>=<value> in the URL scopes the list. Serialised so the memo
+  // below only re-runs when the filters actually change, not on every render.
+  const filterKey = Array.from(searchParams.entries())
+    .filter(([key]) => key.startsWith("filter."))
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join("&");
+  const urlFilters = useMemo(() => {
+    const entries = new URLSearchParams(filterKey);
+    return Object.fromEntries(
+      Array.from(entries.entries()).map(([key, value]) => [key.slice("filter.".length), value]),
+    );
+  }, [filterKey]);
+  const hasFilters = Object.keys(urlFilters).length > 0;
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const [searchInput, setSearchInput] = useState(urlSearch);
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
@@ -69,6 +110,26 @@ export default function EntityListPage() {
   // How many of a bulk delete were refused because other records link to them.
   const [bulkBlockedCount, setBulkBlockedCount] = useState(0);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  // Cards suit browsing people and deals; a table suits reconciling figures.
+  // The default is per entity, and whatever the user picks is remembered for
+  // that entity only — a preference for cards on contacts says nothing about
+  // how they want to read invoices.
+  const [view, setView] = useState<ViewMode>("table");
+
+  useEffect(() => {
+    setView(readStoredView(entity));
+  }, [entity]);
+
+  const chooseView = useCallback(
+    (next: ViewMode) => {
+      setView(next);
+      storeView(entity, next);
+      // Row selection is a table affordance. Carrying it into card view would
+      // leave the "3 selected" bar up with nothing on screen showing which.
+      setSelectedIds(new Set());
+    },
+    [entity],
+  );
 
   usePageTitle(schema?.pluralLabel ?? entity);
 
@@ -110,7 +171,11 @@ export default function EntityListPage() {
     setLoading(true);
     try {
       const [listResult, schemaResult] = await Promise.all([
-        api.list(entity, { search: urlSearch || undefined, page }),
+        api.list(entity, {
+          search: urlSearch || undefined,
+          page,
+          filters: hasFilters ? urlFilters : undefined,
+        }),
         api.getSchema(entity),
       ]);
       setRecords(listResult.data);
@@ -130,7 +195,7 @@ export default function EntityListPage() {
     } finally {
       setLoading(false);
     }
-  }, [entity, urlSearch, page, toast, setPage]);
+  }, [entity, urlSearch, page, urlFilters, hasFilters, toast, setPage]);
 
   useEffect(() => {
     load();
@@ -309,6 +374,35 @@ export default function EntityListPage() {
           >
             <Download className="mr-1 h-4 w-4" aria-hidden="true" /> Export
           </Button>
+          <div
+            className="flex items-center rounded-md border border-border/80 p-0.5"
+            role="group"
+            aria-label="View mode"
+          >
+            {(
+              [
+                { mode: "cards" as const, icon: LayoutGrid, label: "Card view" },
+                { mode: "table" as const, icon: Rows3, label: "Table view" },
+              ]
+            ).map(({ mode, icon: Icon, label }) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => chooseView(mode)}
+                aria-pressed={view === mode}
+                aria-label={label}
+                title={label}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded transition-colors touch-manipulation",
+                  view === mode
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
           {entity === "automation" && <AiAutomationDialog onCreated={load} />}
           <Button onClick={() => setShowForm(true)} className="touch-manipulation">
             <Plus className="mr-1 h-4 w-4" aria-hidden="true" /> New
@@ -395,6 +489,18 @@ export default function EntityListPage() {
               </Button>
             </div>
           )}
+          {view === "cards" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {records.map((record) => (
+                <RecordCard
+                  key={String(record.id)}
+                  entity={entity}
+                  record={record}
+                  fields={schema?.fields ?? []}
+                />
+              ))}
+            </div>
+          ) : (
           <div className="overflow-hidden rounded-xl border border-border/80 shadow-layered">
             <Table>
               <TableHeader>
@@ -475,6 +581,7 @@ export default function EntityListPage() {
               </TableBody>
             </Table>
           </div>
+          )}
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} className="mt-4" />
         </>
       )}

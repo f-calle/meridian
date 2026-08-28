@@ -25,7 +25,9 @@ export function recordLabel(record: Record<string, unknown>): string {
   if (record.firstName || record.lastName) {
     return [record.firstName, record.lastName].filter(Boolean).join(" ") || "Untitled";
   }
-  const name = record.name ?? record.title ?? record.label ?? record.id;
+  // `number` before the uuid fallback: quotes and invoices carry no name, and
+  // listing one as "da416ab3-410d-…" tells the reader nothing they can use.
+  const name = record.name ?? record.title ?? record.label ?? record.number ?? record.subject ?? record.id;
   return name ? String(name) : "this record";
 }
 
