@@ -171,6 +171,12 @@ async function main() {
     ["Warehouse labor forecasting", 39000, "lost", 0, "Atlas Logistics", "Callum Reid", -12],
     ["Legacy CRM decommission", 28000, "lost", 0, "Nimbus Software", "Jonas Weber", -20],
     ["Seasonal demand planning", 71000, "lead", 15, "Verde Foods", "Rosa Delgado", 110],
+    // Open deals whose close date has already passed. This is how pipeline
+    // value quietly rots, and the home page exists to surface it — a demo with
+    // none of them never shows the feature working.
+    ["Depot expansion rollout", 74000, "proposal", 60, "Atlas Logistics", "Priya Nair", -9],
+    ["Risk modelling engine", 156000, "qualified", 45, "Fernwood Capital", "Greta Olsen", -23],
+    ["Site survey automation", 41000, "proposal", 50, "Solstice Energy", "Owen Brady", -4],
   ];
   const wonDefs: [string, number, string, string, number][] = [
     ["ERP implementation — phase 1", 150000, "Cobalt Manufacturing", "Diane Fournier", 0],
@@ -268,6 +274,15 @@ async function main() {
     ["Q-2026-009", "declined", "Nimbus Software", "Jonas Weber", -40, -10, [
       line("Platform licence — Starter", 1, 4800),
       line("Onsite training day", 1, 2400),
+    ]],
+    // Sent and about to lapse — the window where a nudge still wins the deal.
+    ["Q-2026-018", "sent", "Solstice Energy", "Zara Mensah", -27, 3, [
+      line("Grid maintenance planning module", 1, 38000),
+      line("Field data migration", 1, 6500),
+    ]],
+    ["Q-2026-019", "sent", "Fernwood Capital", "Greta Olsen", -25, 6, [
+      line("Portfolio reporting suite", 1, 52000),
+      line("Analyst onboarding", 3, 1800),
     ]],
   ];
   for (const [number, status, company, contact, issue, expiry, lines] of quoteDefs) {
@@ -372,6 +387,10 @@ async function main() {
     ["Berth availability model", "Tidewater dry dock scheduler", "todo", "medium", 40, 30],
     ["Finance sign-off", "Cobalt ERP phase 1", "done", "high", -12, 6],
     ["Go-live retrospective", "Cobalt ERP phase 1", "done", "low", -5, 4],
+    // Still open and past due — the other half of what the home page ranks.
+    ["Security questionnaire response", "Northwind records modernization", "in_progress", "urgent", -6, 8],
+    ["Telemetry firmware sign-off", "Atlas telemetry pilot", "todo", "high", -2, 5],
+    ["Brand guidelines handover", "Brightline brand refresh", "review", "medium", -11, 6],
   ];
   const tasks: Record<string, string> = {};
   for (const [title, project, status, priority, due, estimatedHours] of taskDefs) {

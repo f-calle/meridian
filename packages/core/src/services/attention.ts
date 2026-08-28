@@ -192,7 +192,11 @@ export async function collectAttention(
           : `${money(quote.total)} · expires in ${plural(remaining, "day")}`,
       daysOverdue: -remaining,
       amount: Number(quote.total ?? 0),
-      severity: remaining <= 2 ? "warning" : "info",
+      // Anything reaching this list already lapses within the week, and a quote
+      // that lapses is lost rather than late — so the whole window is a
+      // warning. Ranking it as "info" buried real money under one-day-late
+      // phone calls.
+      severity: "warning",
     });
   }
 
