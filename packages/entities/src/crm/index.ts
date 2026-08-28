@@ -96,6 +96,17 @@ export const DealEntity = defineEntity({
     pipelineId: field.relation("pipeline", { label: "Pipeline" }),
     assignedTo: field.string({ label: "Assigned To" }),
     expectedClose: field.date({ label: "Expected Close Date" }),
+    /**
+     * When the deal actually closed, won or lost.
+     *
+     * Stage alone is a snapshot: it says where every deal sits right now and
+     * nothing about when it got there. Without this there is no bookings-by-
+     * month, no win-rate trend, no sales-cycle length — every report that has a
+     * time axis. `updatedAt` is not a substitute; any later edit moves it.
+     *
+     * Derived, not entered: see `derive` below.
+     */
+    closedAt: field.date({ label: "Closed Date" }),
     notes: field.text({ label: "Notes" }),
   },
   permissions: {
@@ -103,6 +114,23 @@ export const DealEntity = defineEntity({
     sales: salesPerms,
     member: memberPerms,
     agent: salesPerms,
+  },
+  /**
+   * Stamp closedAt when the deal reaches a closed stage, clear it if the deal
+   * is reopened. Nobody types this field; the whole point is that it records
+   * what happened rather than what someone remembered to record.
+   */
+  derive: (incoming, previous) => {
+    const stage = (incoming.stage ?? previous?.stage) as string | undefined;
+    if (!stage) return undefined;
+    const isClosed = stage === "won" || stage === "lost";
+    const wasStamped = Boolean(previous?.closedAt);
+
+    // Already stamped and still closed: leave it. Re-stamping on every later
+    // edit would move the close date every time someone fixed a typo.
+    if (isClosed && !wasStamped) return { closedAt: new Date().toISOString().slice(0, 10) };
+    if (!isClosed && wasStamped) return { closedAt: null };
+    return undefined;
   },
   lifecycle: {
     onCreate: ["audit.log"],

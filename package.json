@@ -13,7 +13,8 @@
     "test": "turbo run test",
     "db:generate": "tsx scripts/generate-schema.ts && pnpm --filter @meridian/core exec drizzle-kit generate",
     "db:check": "tsx scripts/generate-schema.ts --check",
-    "db:migrate:ci": "tsx scripts/migrate.ts"
+    "db:migrate:ci": "tsx scripts/migrate.ts",
+    "db:backfill-closed-at": "tsx scripts/backfill-closed-at.ts"
   },
   "devDependencies": {
     "@meridian/core": "workspace:*",

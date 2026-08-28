@@ -43,6 +43,22 @@ export interface EntityDefinition {
     onDelete?: string[];
   };
   externalId?: boolean;
+  /**
+   * Fields the record computes for itself, applied on every write before it
+   * hits the database.
+   *
+   * `incoming` holds the validated payload; `previous` is the stored record on
+   * an update and undefined on a create. Return only the fields to change — an
+   * empty object or undefined means nothing is derived.
+   *
+   * This runs inside the same statement as the caller's own changes, so a
+   * derived value lands in one write, one audit diff and one automation event.
+   * Doing it as a follow-up update would double all three.
+   */
+  derive?: (
+    incoming: Record<string, unknown>,
+    previous?: Record<string, unknown>,
+  ) => Record<string, unknown> | undefined;
 }
 
 export interface EntityRegistry {

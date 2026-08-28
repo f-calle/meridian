@@ -154,6 +154,7 @@ export const dealTable = pgTable(
     pipelineId: text("pipeline_id"),
     assignedTo: text("assigned_to"),
     expectedClose: timestamp("expected_close", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
     notes: text("notes"),
   },
   (t) => [

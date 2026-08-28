@@ -34,6 +34,8 @@ export class EntityService {
     // externalId/sourceSystem aren't declared entity fields, so zod strips
     // them from validation.data — carry them across from the raw input or
     // idempotent re-imports would silently duplicate.
+    const derived = entity.derive?.(validation.data) ?? {};
+    Object.assign(validation.data, derived);
     const dbData = mapFieldsToDb(entity, withExternalIdentity(validation.data, data));
     const columns = ["id", "tenant_id", ...Object.keys(dbData).map(toColumnName)];
     const values = [id, actor.tenantId, ...Object.values(dbData)];
@@ -85,6 +87,9 @@ export class EntityService {
       throw new Error(`Validation failed: ${validation.errors.join(", ")}`);
     }
 
+    // Derived fields join the payload so they are written, audited and seen by
+    // automations as part of this one change.
+    Object.assign(validation.data, entity.derive?.(validation.data, existing) ?? {});
     const dbData = mapFieldsToDb(entity, withExternalIdentity(validation.data, data), {
       applyDefaults: false,
     });
