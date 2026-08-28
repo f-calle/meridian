@@ -96,6 +96,23 @@ statement timeout (`MERIDIAN_STATEMENT_TIMEOUT_MS`, default 30s) so a
 pathological query cannot pin a connection; the migration pool deliberately has
 none, since an index build is allowed to take as long as it takes.
 
+## The MCP bridge
+
+`apps/mcp` exposes the entity engine over HTTP for MCP clients. Every request
+authenticates with the same signed bearer token the main API uses, and the actor
+is derived from that token alone. `/health` is the only unauthenticated route.
+
+It binds to loopback unless `MCP_BIND` says otherwise, so reaching it from
+another container is a deliberate configuration step rather than the default.
+
+This route previously read the acting identity out of the request body and had
+no authentication at all, which meant anyone who could reach the port could
+declare themselves admin of any tenant and get unrestricted CRUD, with audit
+rows attributed to whatever actor id they chose. It was never given a public
+domain, so it was reachable only from inside the deployment's private network —
+but that is containment by configuration, not by design, and it is one click
+from being wrong.
+
 ## Odoo import
 
 The Odoo adapter is strictly read-only. It calls `authenticate`, `search_count`

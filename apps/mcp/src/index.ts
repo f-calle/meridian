@@ -1,16 +1,14 @@
 import { registerEntities } from "@meridian/core";
 import { allEntities } from "@meridian/entities";
 import { startHttpMcpServer } from "@meridian/ai";
-import type { ActorContext } from "@meridian/core";
 
 registerEntities(allEntities);
 
-const defaultActor: ActorContext = {
-  id: "system-agent",
-  type: "agent",
-  tenantId: process.env.DEFAULT_TENANT_ID ?? "00000000-0000-0000-0000-000000000001",
-  role: "agent",
-};
+// Every request authenticates itself with a bearer token, so there is no
+// ambient identity here to configure — and no DEFAULT_TENANT_ID to get wrong.
+if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
+  console.error("FATAL: AUTH_SECRET must be set in production — refusing to start");
+  process.exit(1);
+}
 
-const port = Number(process.env.PORT ?? 8080);
-startHttpMcpServer(port, defaultActor);
+startHttpMcpServer(Number(process.env.PORT ?? 8080));

@@ -3,6 +3,7 @@ import { entityRegistry } from "../entity/registry.js";
 import { entityService } from "./entity-service.js";
 import { inboundRelations } from "./references.js";
 import { isPermissionError } from "../acl/permissions.js";
+import { owedInvoiceFilter } from "./money.js";
 
 /**
  * Everything that points at a record, plus what it points at.
@@ -129,7 +130,7 @@ export async function collectRelated(
         metricField: "total",
         filters: {
           [invoices.field]: recordId,
-          status: { op: "nin", value: ["paid", "cancelled"] },
+          ...owedInvoiceFilter(),
         },
       },
       actor,

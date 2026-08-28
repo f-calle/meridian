@@ -1,6 +1,7 @@
 import type { ActorContext } from "../types.js";
 import { entityService } from "./entity-service.js";
 import { isPermissionError } from "../acl/permissions.js";
+import { owedInvoiceFilter } from "./money.js";
 
 /**
  * What needs a person today.
@@ -111,7 +112,7 @@ export async function collectAttention(
   const [invoices, quotes, stalledDeals, closingDeals, activities, tasks] = await Promise.all([
     safeList("invoice", actor, {
       ...base,
-      filters: { status: { op: "nin", value: ["paid", "cancelled"] }, dueDate: { op: "lt", value: todayIso } },
+      filters: { ...owedInvoiceFilter(), dueDate: { op: "lt", value: todayIso } },
       sortBy: "dueDate",
       sortOrder: "asc",
     }),

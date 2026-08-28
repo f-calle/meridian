@@ -1,6 +1,7 @@
 import type { ActorContext } from "../types.js";
 import { entityService } from "./entity-service.js";
 import { isPermissionError } from "../acl/permissions.js";
+import { owedInvoiceFilter } from "./money.js";
 
 /**
  * The handful of numbers a dashboard should lead with.
@@ -23,7 +24,7 @@ export interface DashboardMetrics {
   lostCount: number;
   /** Won / (won + lost), or null before anything has closed. */
   winRate: number | null;
-  /** Money in invoices that are neither paid nor cancelled. */
+  /** Money in invoices that have been sent and not fully paid. */
   outstandingValue: number;
   /** Stages in pipeline order, so the chart reads as a funnel. */
   pipeline: { stage: string; count: number; value: number }[];
@@ -94,7 +95,7 @@ export async function collectMetrics(actor: ActorContext): Promise<DashboardMetr
       {
         metric: "sum",
         metricField: "total",
-        filters: { status: { op: "nin", value: ["paid", "cancelled"] } },
+        filters: owedInvoiceFilter(),
       },
       actor,
     );

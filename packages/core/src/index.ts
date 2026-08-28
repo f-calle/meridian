@@ -36,6 +36,7 @@ export {
 export { collectAttention, rankAttention } from "./services/attention.js";
 export { collectRelated } from "./services/related.js";
 export { collectMetrics } from "./services/metrics.js";
+export { OWED_INVOICE_STATUSES, owedInvoiceFilter } from "./services/money.js";
 export type { DashboardMetrics } from "./services/metrics.js";
 export type { RelatedGroup, RelatedRecords } from "./services/related.js";
 export type { AttentionItem, AttentionKind, AttentionSummary } from "./services/attention.js";
