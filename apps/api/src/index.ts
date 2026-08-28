@@ -19,6 +19,7 @@ import {
   startAutomationEngine,
   checkPermission,
   collectAttention,
+  parseDayWindow,
   collectMetrics,
   collectReports,
   collectRelated,
@@ -495,8 +496,9 @@ app.get("/api/ai/briefing", async (c) => {
 
 /**
  * What needs the user today: overdue invoices, lapsing quotes, deals past their
- * close date, late activities and tasks. This is what the dashboard leads with,
- * so it is deliberately a single request.
+ * close date, late activities and tasks — plus what is actually scheduled for
+ * today. This is what the dashboard leads with, so it is deliberately a single
+ * request.
  */
 app.get("/api/dashboard/attention", async (c) => {
   const actor = getActor(c);
@@ -504,7 +506,14 @@ app.get("/api/dashboard/attention", async (c) => {
 
   try {
     const limit = Math.min(50, Math.max(1, Number(c.req.query("limit") ?? 12)));
-    return c.json(await collectAttention(actor, { limit }));
+    // The browser sends its own day boundaries. This server runs in UTC and the
+    // person does not, and "today" is the whole point of the schedule panel.
+    const day = parseDayWindow(
+      c.req.query("dayStart"),
+      c.req.query("dayEnd"),
+      c.req.query("date"),
+    );
+    return c.json(await collectAttention(actor, { limit, day }));
   } catch (err) {
     return respondToError(c, err);
   }

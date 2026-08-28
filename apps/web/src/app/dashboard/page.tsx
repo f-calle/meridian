@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Banknote,
   Percent,
+  CalendarDays,
   RefreshCw,
   Sparkles,
   Target,
@@ -17,7 +18,9 @@ import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/stat-tile";
 import { AttentionQueue } from "@/components/attention-queue";
 import { PipelineFunnel } from "@/components/pipeline-funnel";
+import { TodaySchedule } from "@/components/today-schedule";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { cn } from "@/lib/utils";
 import { api, type AttentionSummary, type DashboardMetrics } from "@/lib/api";
 
 /**
@@ -85,6 +88,33 @@ export default function DashboardPage() {
     ? Object.values(attention.counts).reduce((sum, n) => sum + n, 0)
     : 0;
 
+  /**
+   * Rendered twice — once in the sidebar, once above the queue — with only one
+   * visible at a time. The stacked mobile layout puts the sidebar after the
+   * whole attention queue, which is the wrong end of a phone screen for the
+   * thing you are checking at nine in the morning.
+   */
+  function TodayCard({ className }: { className?: string }) {
+    return (
+      <Card className={cn("glass-card shadow-layered", className)}>
+        <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            Today
+          </CardTitle>
+          {!loading && attention && attention.today.total > attention.today.items.length && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              showing {attention.today.items.length} of {attention.today.total}
+            </span>
+          )}
+        </CardHeader>
+        <CardContent>
+          <TodaySchedule items={attention?.today.items ?? []} loading={loading} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -104,6 +134,12 @@ export default function DashboardPage() {
                 {totalNeedingAttention === 0
                   ? "nothing overdue"
                   : `${totalNeedingAttention} item${totalNeedingAttention === 1 ? "" : "s"} need you`}
+              </>
+            )}
+            {!loading && attention && attention.today.total > 0 && (
+              <>
+                {" · "}
+                {attention.today.total} on today
               </>
             )}
           </p>
@@ -173,6 +209,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 lg:hidden">
+          <TodayCard />
+        </div>
+
         <div className="col-span-12 lg:col-span-7 xl:col-span-8">
           <Card className="glass-card shadow-layered">
             <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/80 bg-muted/20 pb-4">
@@ -192,6 +232,8 @@ export default function DashboardPage() {
         </div>
 
         <div className="col-span-12 space-y-4 lg:col-span-5 xl:col-span-4">
+          <TodayCard className="hidden lg:block" />
+
           <Card className="glass-card border-primary/20 shadow-layered">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">

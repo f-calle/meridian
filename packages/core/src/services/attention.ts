@@ -2,6 +2,7 @@ import type { ActorContext } from "../types.js";
 import { entityService } from "./entity-service.js";
 import { isPermissionError } from "../acl/permissions.js";
 import { owedInvoiceFilter } from "./money.js";
+import { collectSchedule, serverDayWindow, type DayWindow, type ScheduleSummary } from "./schedule.js";
 
 /**
  * What needs a person today.
@@ -44,17 +45,24 @@ export interface AttentionSummary {
   counts: Record<AttentionKind, number>;
   /** Money sitting in overdue invoices. */
   overdueValue: number;
+  /** What is on today — the plan, as opposed to the debt above. */
+  today: ScheduleSummary;
 }
 
 const DAY_MS = 86_400_000;
 
-function startOfToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/**
+ * Shift a YYYY-MM-DD date by whole days, staying on the calendar.
+ *
+ * Deliberately not `new Date(start + n * DAY_MS).toISOString()`: the window's
+ * start is an instant at the user's local midnight, so slicing its UTC form
+ * names the wrong day for timezones far enough from UTC, and the horizons
+ * below would land a day out for them.
+ */
+function addDays(date: string, days: number): string {
+  const at = new Date(`${date}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + days);
+  return at.toISOString().slice(0, 10);
 }
 
 /** Whole days between a due date and today; positive means overdue. */
@@ -98,18 +106,19 @@ async function safeList(
 /** Build the attention queue for an actor's tenant. */
 export async function collectAttention(
   actor: ActorContext,
-  options: { limit?: number } = {},
+  options: { limit?: number; day?: DayWindow } = {},
 ): Promise<AttentionSummary> {
   const limit = options.limit ?? 12;
-  const today = startOfToday();
-  const todayIso = isoDate(today);
-  const inSevenDays = isoDate(new Date(today.getTime() + 7 * DAY_MS));
-  const inFourteenDays = isoDate(new Date(today.getTime() + 14 * DAY_MS));
+  const day = options.day ?? serverDayWindow();
+  const today = day.start;
+  const todayIso = day.date;
+  const inSevenDays = addDays(todayIso, 7);
+  const inFourteenDays = addDays(todayIso, 14);
   // "Stalled" is a deal whose expected close has come and gone while it sits in
   // an open stage — the single most common way pipeline value quietly rots.
   const base = { tenantId: actor.tenantId, pageSize: 25 } as const;
 
-  const [invoices, quotes, stalledDeals, closingDeals, activities, tasks] = await Promise.all([
+  const [invoices, quotes, stalledDeals, closingDeals, activities, tasks, schedule] = await Promise.all([
     safeList("invoice", actor, {
       ...base,
       filters: { ...owedInvoiceFilter(), dueDate: { op: "lt", value: todayIso } },
@@ -151,7 +160,10 @@ export async function collectAttention(
     }),
     safeList("activity", actor, {
       ...base,
-      filters: { completed: false, dueDate: { op: "lt", value: new Date().toISOString() } },
+      // Before today, not before this instant. Anything due today — including
+      // the 9am nobody got to — belongs to the schedule panel, and listing it
+      // in both places would double-count the same commitment on one screen.
+      filters: { completed: false, dueDate: { op: "lt", value: day.start.toISOString() } },
       sortBy: "dueDate",
       sortOrder: "asc",
     }),
@@ -161,6 +173,7 @@ export async function collectAttention(
       sortBy: "dueDate",
       sortOrder: "asc",
     }),
+    collectSchedule(actor, { day }),
   ]);
 
   const items: AttentionItem[] = [];
@@ -268,6 +281,7 @@ export async function collectAttention(
     items: rankAttention(items).slice(0, limit),
     counts,
     overdueValue: invoices.rows.reduce((sum, i) => sum + Number(i.total ?? 0), 0),
+    today: schedule,
   };
 }
 

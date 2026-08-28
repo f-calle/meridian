@@ -19,10 +19,28 @@ export interface AttentionItem {
   severity: "critical" | "warning" | "info";
 }
 
+export interface ScheduleItem {
+  kind: "activity" | "task";
+  entity: string;
+  recordId: string;
+  title: string;
+  detail: string;
+  priority?: "low" | "medium" | "high" | "urgent";
+  /** ISO instant, or null for something due today with no time attached. */
+  at: string | null;
+  past: boolean;
+}
+
+export interface ScheduleSummary {
+  items: ScheduleItem[];
+  total: number;
+}
+
 export interface AttentionSummary {
   items: AttentionItem[];
   counts: Record<AttentionKind, number>;
   overdueValue: number;
+  today: ScheduleSummary;
 }
 
 export interface AccentVariant {
@@ -209,7 +227,7 @@ export const api = {
       { method: "DELETE" },
     ),
 
-  /** What needs the user today, ranked. Powers the home page's work queue. */
+  /** Aging, forecast, bookings, stalled pipeline, concentration, quote outcomes. */
   reports: () => apiFetch<ReportSet>("/api/dashboard/reports"),
 
   getBranding: () => apiFetch<Branding>("/api/branding"),
@@ -224,8 +242,28 @@ export const api = {
   /** The figures the home page leads with. */
   metrics: () => apiFetch<DashboardMetrics>("/api/dashboard/metrics"),
 
-  attention: (limit = 12) =>
-    apiFetch<AttentionSummary>(`/api/dashboard/attention?limit=${limit}`),
+  /**
+   * What needs the user, ranked, plus what is on today.
+   *
+   * The day boundaries come from here rather than the server: the API runs in
+   * UTC and the person does not, so only the browser knows when their today
+   * starts and ends.
+   */
+  attention: (limit = 12) => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const date = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+    const params = new URLSearchParams({
+      limit: String(limit),
+      dayStart: start.toISOString(),
+      dayEnd: end.toISOString(),
+      date,
+    });
+    return apiFetch<AttentionSummary>(`/api/dashboard/attention?${params}`);
+  },
 
   /** Records pointing at this one, plus rolled-up value. */
   related: (entity: string, id: string) =>

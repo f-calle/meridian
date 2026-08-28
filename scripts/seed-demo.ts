@@ -57,6 +57,20 @@ function daysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
+/**
+ * An instant at a given hour of a given day, relative to today.
+ *
+ * Activities seeded with `Date.now() + n days` all land at whatever minute the
+ * seed happened to run, which makes the day panel read like a machine filled
+ * it in. Real days have appointments at nine and eleven and three.
+ */
+function atHour(days: number, hour: number): string {
+  const at = new Date();
+  at.setDate(at.getDate() + days);
+  at.setHours(hour, 0, 0, 0);
+  return at.toISOString();
+}
+
 /** ASCII-only email local part from a human name ("Tomás" → "tomas"). */
 function emailSlug(name: string): string {
   return name.toLowerCase().normalize("NFD").replace(/[^a-z]/g, "");
@@ -391,9 +405,15 @@ async function main() {
     ["Security questionnaire response", "Northwind records modernization", "in_progress", "urgent", -6, 8],
     ["Telemetry firmware sign-off", "Atlas telemetry pilot", "todo", "high", -2, 5],
     ["Brand guidelines handover", "Brightline brand refresh", "review", "medium", -11, 6],
+    // Due today with no time attached — these sit below the timed items.
+    ["Sign off Atlas telemetry scope", "Atlas telemetry pilot", "todo", "urgent", 0, 3],
+    ["Draft Lumen renewal terms", "Lumen analytics platform build", "todo", "medium", 0, 4],
   ];
   const tasks: Record<string, string> = {};
   for (const [title, project, status, priority, due, estimatedHours] of taskDefs) {
+    // A typo in a project name would otherwise create a task with no project
+    // and no complaint, and the seed would look like it worked.
+    if (!projects[project]) throw new Error(`Task "${title}" names an unknown project: ${project}`);
     const r = await findOrCreate("task", "title", title, {
       title,
       projectId: projects[project],
@@ -420,8 +440,16 @@ async function main() {
     status: "pending",
   });
 
-  const activityDefs: [string, string, string, number, boolean][] = [
-    // type, subject, relatedEntity, dueDays, completed
+  const activityDefs: [string, string, string, number, boolean, number?][] = [
+    // type, subject, relatedEntity, dueDays, completed, hourOfDay
+    //
+    // The ones at day 0 are what makes the home page's day panel a day: a
+    // seeded tenant with nothing on today shows an empty schedule, which reads
+    // as a broken feature rather than a quiet morning.
+    ["meeting", "Standup: Northwind pilot", "project", 0, false, 9],
+    ["call", "Renewal call — Lumen Analytics", "company", 0, false, 11],
+    ["email", "Send Verde Foods the revised quote", "deal", 0, false, 14],
+    ["meeting", "Atlas telemetry design review", "project", 0, false, 16],
     ["call", "Follow up on treasury suite proposal", "deal", -1, false],
     ["email", "Send revised pricing to Verde Foods", "deal", -2, false],
     ["meeting", "Quarterly review with Lumen", "company", 5, false],
@@ -440,12 +468,12 @@ async function main() {
     ["task", "Prepare Northwind pilot success metrics", "project", 9, false],
     ["call", "Follow up: Orbit firmware pipeline scope", "deal", -5, false],
   ];
-  for (const [type, subject, relatedEntity, due, completed] of activityDefs) {
+  for (const [type, subject, relatedEntity, due, completed, hour] of activityDefs) {
     await findOrCreate("activity", "subject", subject, {
       type,
       subject,
       relatedEntity,
-      dueDate: new Date(Date.now() + due * 86_400_000).toISOString(),
+      dueDate: hour === undefined ? new Date(Date.now() + due * 86_400_000).toISOString() : atHour(due, hour),
       completed,
     });
   }
@@ -501,7 +529,7 @@ async function main() {
     commentCount++;
   }
 
-  console.log(`milestones: 2, activities: 17, time entries: 2, comments: ${commentCount}`);
+  console.log(`milestones: 2, activities: ${activityDefs.length}, time entries: 2, comments: ${commentCount}`);
 
   console.log("Demo data seeded ✔");
 }
