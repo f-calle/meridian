@@ -58,6 +58,22 @@ export interface DashboardMetrics {
   pipeline: { stage: string; count: number; value: number }[];
 }
 
+export interface ReportBucket {
+  label: string;
+  value: number;
+  count: number;
+}
+
+export interface ReportSet {
+  aging: ReportBucket[];
+  forecast: ReportBucket[];
+  bookings: ReportBucket[];
+  stalled: { stage: string; onTrack: number; pastDue: number }[];
+  concentration: { name: string; value: number; share: number }[];
+  quoteOutcomes: ReportBucket[];
+  acceptanceRate: number | null;
+}
+
 export interface RelatedGroup {
   entity: string;
   label: string;
@@ -194,6 +210,8 @@ export const api = {
     ),
 
   /** What needs the user today, ranked. Powers the home page's work queue. */
+  reports: () => apiFetch<ReportSet>("/api/dashboard/reports"),
+
   getBranding: () => apiFetch<Branding>("/api/branding"),
 
   /** Admin-only. `null` for accent or logo clears it. */

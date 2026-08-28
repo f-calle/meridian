@@ -225,6 +225,12 @@ export class EntityService {
     entityName: string,
     options: {
       groupBy?: string;
+      /**
+       * Bucket a date groupBy by calendar period. Without this, "bookings per
+       * month" means one query per month, or pulling every row into memory to
+       * group it there — neither of which survives a real dataset.
+       */
+      bucket?: "day" | "week" | "month" | "quarter" | "year";
       metric?: "count" | "sum" | "avg" | "weighted_sum";
       metricField?: string;
       /** Percentage field weighting a weighted_sum, e.g. a deal's probability. */
@@ -276,8 +282,23 @@ export class EntityService {
       if (!groupCol) throw new Error(`Unknown groupBy field: ${options.groupBy}`);
     }
 
-    const selectGroup = groupCol ? `${groupCol}::text as grp` : "NULL as grp";
-    const groupClause = groupCol ? `GROUP BY ${groupCol} ORDER BY count DESC` : "";
+    let groupExpr = groupCol;
+    if (groupCol && options.bucket) {
+      const def = entity.fields[options.groupBy!];
+      if (def && def.type !== "date" && def.type !== "datetime") {
+        throw new Error(`Cannot bucket "${options.groupBy}": it is not a date`);
+      }
+      // The period is whitelisted above, never interpolated from the request.
+      if (!BUCKETS.has(options.bucket)) throw new Error(`Unknown bucket: ${options.bucket}`);
+      groupExpr = `date_trunc('${options.bucket}', ${groupCol})::date`;
+    }
+
+    const selectGroup = groupExpr ? `${groupExpr}::text as grp` : "NULL as grp";
+    // Bucketed results are ordered by the period, not by size — a time series
+    // sorted by magnitude is not a time series.
+    const groupClause = groupExpr
+      ? `GROUP BY ${groupExpr} ORDER BY ${options.bucket ? `${groupExpr} ASC` : "count DESC"}`
+      : "";
 
     const rows = await getSql().unsafe(
       `SELECT ${selectGroup}, COUNT(*)::int as count, ${metricExpr} as value FROM ${entityName} WHERE ${whereClause} ${groupClause}`,
@@ -346,6 +367,7 @@ export class EntityService {
 }
 
 const SYSTEM_COLUMNS = new Set(["id", "created_at", "updated_at", "external_id", "source_system"]);
+const BUCKETS = new Set(["day", "week", "month", "quarter", "year"]);
 
 /** Re-attach external identity fields that entity validation strips out. */
 function withExternalIdentity(

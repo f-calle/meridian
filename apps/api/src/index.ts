@@ -20,6 +20,7 @@ import {
   checkPermission,
   collectAttention,
   collectMetrics,
+  collectReports,
   collectRelated,
   parseFilterParams,
 } from "@meridian/core";
@@ -516,6 +517,18 @@ app.get("/api/dashboard/metrics", async (c) => {
 
   try {
     return c.json(await collectMetrics(actor));
+  } catch (err) {
+    return respondToError(c, err);
+  }
+});
+
+/** The reports page: aging, forecast, bookings, stalled pipeline, concentration. */
+app.get("/api/dashboard/reports", async (c) => {
+  const actor = getActor(c);
+  if (!actor) return c.json({ error: "Unauthorized" }, 401);
+
+  try {
+    return c.json(await collectReports(actor));
   } catch (err) {
     return respondToError(c, err);
   }

@@ -8,6 +8,12 @@ export interface BarDatum {
   count?: number;
   /** Optional explicit color (e.g. status colors); defaults to the series hue */
   color?: string;
+  /**
+   * Replaces the default "N records" tooltip. Some bars measure something that
+   * is not a record count — a share of revenue, say — and labelling that as
+   * records is worse than showing nothing.
+   */
+  tooltip?: string;
 }
 
 /**
@@ -60,12 +66,12 @@ export function BarChart({
             </span>
             <span className="tabular-nums text-sm font-medium">{format(d.value)}</span>
 
-            {hovered === i && d.count !== undefined && (
+            {hovered === i && (d.tooltip !== undefined || d.count !== undefined) && (
               <span
                 role="status"
                 className="pointer-events-none absolute -top-7 left-32 z-10 rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-md"
               >
-                {d.count} {d.count === 1 ? "record" : "records"} · {format(d.value)}
+                {d.tooltip ?? `${d.count} ${d.count === 1 ? "record" : "records"}`} · {format(d.value)}
               </span>
             )}
           </li>
