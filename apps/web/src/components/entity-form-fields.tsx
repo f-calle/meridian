@@ -7,6 +7,24 @@ import { LineItemsEditor, LineItemsView } from "@/components/line-items-editor";
 import { StatusBadge, isStatusValue } from "@/components/status-badge";
 import type { EntityField } from "@/lib/entity-ui";
 import { formatFieldValue } from "@/lib/entity-ui";
+import { useDevMode } from "@/hooks/use-dev-mode";
+
+/**
+ * The field's real name and type, shown only in developer mode.
+ *
+ * A label reads "Win Probability (%)"; the automation you are writing needs
+ * "probability" and needs to know it is a number. Putting it beside the label
+ * means you never have to leave the record to find out.
+ */
+function FieldMeta({ field }: { field: EntityField }) {
+  return (
+    <code className="ml-2 text-[10px] font-normal normal-case tracking-normal text-muted-foreground/80">
+      {field.name}
+      <span className="text-muted-foreground/50">:{field.type}</span>
+      {field.relation && <span className="text-muted-foreground/50">→{field.relation}</span>}
+    </code>
+  );
+}
 
 interface EntityFormFieldsProps {
   fields: EntityField[];
@@ -16,6 +34,8 @@ interface EntityFormFieldsProps {
 }
 
 export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: EntityFormFieldsProps) {
+  const devMode = useDevMode();
+
   return (
     <>
       {fields.map((field) => (
@@ -25,7 +45,10 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
         >
           {mode === "view" ? (
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{field.label}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {field.label}
+                {devMode && <FieldMeta field={field} />}
+              </p>
               {field.name === "lines" && field.type === "json" ? (
                 <LineItemsView value={formData[field.name]} />
               ) : (
@@ -42,7 +65,10 @@ export function EntityFormFields({ fields, formData, onChange, mode = "edit" }: 
             </div>
           ) : (
             <>
-              <Label htmlFor={field.name}>{field.label}</Label>
+              <Label htmlFor={field.name}>
+                {field.label}
+                {devMode && <FieldMeta field={field} />}
+              </Label>
               {field.name === "lines" && field.type === "json" ? (
                 <LineItemsEditor
                   value={formData[field.name]}

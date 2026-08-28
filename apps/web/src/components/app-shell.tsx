@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   Users,
+  Braces,
   Building2,
   Target,
   FolderKanban,
@@ -28,6 +29,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { MeridianLogo } from "@/components/meridian-logo";
 import { getToken, clearToken, getCurrentUser } from "@/lib/api";
 import { readBrandingCache } from "@/lib/branding";
@@ -218,6 +220,8 @@ function SidebarFooter({
   onAiOpen: () => void;
   onLogout: () => void;
 }) {
+  const devMode = useDevMode();
+
   return (
     <div className="mt-auto space-y-1.5 border-t border-border/80 p-3">
       <button
@@ -241,6 +245,18 @@ function SidebarFooter({
           row keeps them reachable without spending two more sidebar lines. */}
       <div className="flex items-center gap-1 pt-0.5">
         <ThemeToggle className="h-8 w-8 justify-center p-0 touch-manipulation" iconOnly />
+        {/* Dev mode changes what several screens show, so it is never on
+            silently — this is the way back out of it. */}
+        {devMode && (
+          <Link
+            href="/settings"
+            title="Developer mode is on"
+            className="flex h-8 items-center gap-1 rounded-md px-2 text-[10px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-muted touch-manipulation"
+          >
+            <Braces className="h-3.5 w-3.5" aria-hidden="true" />
+            Dev
+          </Link>
+        )}
         <Button
           variant="ghost"
           size="sm"

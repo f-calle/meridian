@@ -7,6 +7,39 @@ export type EntityField = {
   relation?: string;
 };
 
+const DATE_PREFIX = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/**
+ * A stored date or timestamp, written the way a person reads one.
+ *
+ * A `date` is a calendar day, not a moment, so it is formatted from its digits
+ * rather than by building a Date: the column holds either "2026-07-14" or that
+ * same day stamped at UTC midnight, and both become the 13th of July for
+ * anyone west of Greenwich the moment you let a timezone touch them.
+ *
+ * A `datetime` really is an instant, so that one is converted to local time,
+ * which is the whole point of storing it as one.
+ */
+function formatTemporal(value: string, type: "date" | "datetime"): string | null {
+  if (type === "date") {
+    const parts = DATE_PREFIX.exec(value);
+    if (!parts) return null;
+    const [, year, month, day] = parts as unknown as [string, string, string, string];
+    const local = new Date(Number(year), Number(month) - 1, Number(day));
+    if (Number.isNaN(local.getTime())) return null;
+    return local.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return null;
+  return at.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatFieldValue(value: unknown, type?: string): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -15,6 +48,10 @@ export function formatFieldValue(value: unknown, type?: string): string {
       return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
     }
     return value.toLocaleString();
+  }
+  if (typeof value === "string" && (type === "date" || type === "datetime")) {
+    const formatted = formatTemporal(value, type);
+    if (formatted) return formatted;
   }
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "object") return JSON.stringify(value, null, 2);

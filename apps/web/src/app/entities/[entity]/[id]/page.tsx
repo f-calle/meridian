@@ -19,8 +19,10 @@ import { EntityFormFields } from "@/components/entity-form-fields";
 import { EntityAuditTimeline } from "@/components/entity-audit-timeline";
 import { EntityComments } from "@/components/entity-comments";
 import { RelatedRecordsPanel } from "@/components/related-records";
+import { DevInspector } from "@/components/dev-inspector";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { api } from "@/lib/api";
 import { recordLabel, recordTitle, type EntityField } from "@/lib/entity-ui";
@@ -29,6 +31,7 @@ export default function EntityDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const devMode = useDevMode();
   const entity = params.entity as string;
   const id = params.id as string;
 
@@ -183,7 +186,17 @@ export default function EntityDetailPage() {
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>{schema.label}</span>
               <span className="h-1 w-1 rounded-full bg-muted-foreground/50" aria-hidden="true" />
-              <span className="tabular-nums">ID: {String(record.id).slice(0, 8)}</span>
+              <span className="tabular-nums">
+                ID: {devMode ? String(record.id) : String(record.id).slice(0, 8)}
+              </span>
+              {devMode && record.sourceSystem ? (
+                <>
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+                  <span>
+                    from <code className="text-xs">{String(record.sourceSystem)}</code>
+                  </span>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -289,6 +302,15 @@ export default function EntityDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Placed here rather than in the sidebar below: the grid leaves the
+            top-right cell empty beside Basic Information, which is where a
+            reference panel belongs — beside the fields it explains. */}
+        {devMode && (
+          <div className="lg:col-span-4">
+            <DevInspector entity={entity} record={record} fields={schema.fields} />
+          </div>
+        )}
 
         <div className="lg:col-span-8">
           <RelatedRecordsPanel entity={entity} id={id} />

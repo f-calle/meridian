@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Braces } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api, clearToken, getCurrentUser, type TeamUser } from "@/lib/api";
 import { BrandingCard } from "@/components/branding-card";
+import { setDevMode, useDevMode } from "@/hooks/use-dev-mode";
 
 /**
  * Assignable roles, with the job each one does — a dropdown of bare words makes
@@ -37,13 +38,21 @@ const ROLES: { value: string; label: string; description: string; ownerOnly?: bo
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const devMode = useDevMode();
   const router = useRouter();
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [loading, setLoading] = useState(true);
   // Read the role from the signed token rather than inferring it from a failed
   // request — the old code guessed by matching the word "Admin" in an error
   // message, so any unrelated failure containing it flipped the whole UI.
-  const currentRole = getCurrentUser()?.role ?? "";
+  // Read after mount, never during render: getCurrentUser() reads localStorage,
+  // which is empty on the server, so using it inline made the server and the
+  // first client render disagree about which sections exist — a hydration
+  // mismatch that made React throw away the server HTML for this whole page.
+  const [currentRole, setCurrentRole] = useState("");
+  useEffect(() => {
+    setCurrentRole(getCurrentUser()?.role ?? "");
+  }, []);
   const isAdmin = currentRole === "admin" || currentRole === "owner";
   const isOwner = currentRole === "owner";
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -187,6 +196,38 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Braces className="h-4 w-4 text-primary" /> Developer mode
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <p className="max-w-prose text-sm text-muted-foreground">
+              Shows the technical name and type beside every field, the full record ID, and an
+              inspector with the entity&apos;s schema and the record&apos;s raw JSON. Useful when
+              you are writing an automation or tracing an imported row back to its source.
+              {" "}
+              <span className="text-foreground">
+                It changes what you see, not what you can do — permissions are unaffected.
+              </span>
+            </p>
+            <Button
+              variant={devMode ? "default" : "outline"}
+              onClick={() => setDevMode(!devMode)}
+              className="shrink-0 justify-self-start touch-manipulation"
+              aria-pressed={devMode}
+            >
+              {devMode ? "On" : "Off"}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Remembered in this browser only, so it does not follow you onto a phone.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
