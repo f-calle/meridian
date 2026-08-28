@@ -21,6 +21,7 @@ import { EntityComments } from "@/components/entity-comments";
 import { RelatedRecordsPanel } from "@/components/related-records";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { api } from "@/lib/api";
 import { recordLabel, recordTitle, type EntityField } from "@/lib/entity-ui";
 
@@ -40,6 +41,9 @@ export default function EntityDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   // The API's explanation when it refuses a delete that other records depend on.
   const [deleteBlockedBy, setDeleteBlockedBy] = useState<string | null>(null);
+
+  // An open editor holds changes that exist nowhere but this tab.
+  useUnsavedChanges(editing && !saving);
   const [deleting, setDeleting] = useState(false);
 
   const pageTitle = record && schema ? recordTitle(record, schema.label) : schema?.label ?? "Record";

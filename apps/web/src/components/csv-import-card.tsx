@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { AlertCircle, ArrowRight, CheckCircle2, FileUp, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,11 @@ export function CsvImportCard({
   const [entity, setEntity] = useState("");
   const [mapping, setMapping] = useState<MappingRow[]>([]);
   const [externalIdColumn, setExternalIdColumn] = useState("");
+
+  // A pasted file plus a reviewed column mapping is real work — and the AI
+  // mapping cost a model call to produce. Losing it to a stray reload is worse
+  // than the reload.
+  useUnsavedChanges(csv.trim().length > 0);
   const [unmapped, setUnmapped] = useState<{ column: string; reason: string }[]>([]);
   const [entityFields, setEntityFields] = useState<EntityField[]>([]);
   const [aiMapping, setAiMapping] = useState(false);
