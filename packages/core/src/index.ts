@@ -42,6 +42,8 @@ export type { RelatedGroup, RelatedRecords } from "./services/related.js";
 export type { AttentionItem, AttentionKind, AttentionSummary } from "./services/attention.js";
 export { compileFilters, parseFilterParams, isFilterOp, FILTER_OPS } from "./services/filters.js";
 export type { FilterOp, FilterCondition } from "./services/filters.js";
+export { deriveAccent, accentWarning, hslToHex, contrastRatio } from "./branding/accent.js";
+export type { AccentVariant, AccentVariants } from "./branding/accent.js";
 export { getDb, closeDb } from "./db/client.js";
 export { expectedColumns, sqlTypeFor } from "./db/entity-store.js";
 export { renderEntitySchema, drizzleColumnFor, tableConstName } from "./db/schema-codegen.js";

@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { readBrandingCache } from "@/lib/branding";
 
 interface MeridianLogoProps {
   className?: string;
@@ -14,6 +16,22 @@ const sizes = {
 };
 
 export function MeridianLogo({ className, size = "md" }: MeridianLogoProps) {
+  // Read after mount: localStorage does not exist during SSR, and rendering the
+  // default mark first then swapping is the honest tradeoff — the alternative
+  // is inlining an image into the pre-paint script.
+  const [logo, setLogo] = useState<{ dataUri: string; alt: string } | null>(null);
+  useEffect(() => setLogo(readBrandingCache()?.logo ?? null), []);
+
+  if (logo) {
+    return (
+      <img
+        src={logo.dataUri}
+        alt={logo.alt}
+        className={cn("shrink-0 rounded-lg object-contain", sizes[size], className)}
+      />
+    );
+  }
+
   return (
     <div
       className={cn(

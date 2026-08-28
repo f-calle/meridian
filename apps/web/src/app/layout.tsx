@@ -22,7 +22,10 @@ export const viewport: Viewport = {
 // styled markup — without it the page paints light and then flips.
 // Light is the default: an ERP is a daylight, all-day tool, and a business
 // showing this to a customer should not have to explain why it opened dark.
-const themeScript = `(function(){try{var t=localStorage.getItem('meridian-theme');var d=t==='dark'?'dark':'light';document.documentElement.classList.add(d);document.documentElement.style.colorScheme=d;}catch(e){document.documentElement.classList.add('light');}})();`;
+// Also assigns the tenant accent, from variants computed server-side and
+// cached — no colour maths in here, just four assignments, so a branded tenant
+// never paints default blue and then flips.
+const themeScript = `(function(){try{var t=localStorage.getItem('meridian-theme');var d=t==='dark'?'dark':'light';var r=document.documentElement;r.classList.add(d);r.style.colorScheme=d;var b=JSON.parse(localStorage.getItem('meridian-branding')||'null');var v=b&&b.variants&&b.variants[d];if(v){r.style.setProperty('--primary',v.primary);r.style.setProperty('--primary-foreground',v.primaryForeground);r.style.setProperty('--ring',v.ring);r.style.setProperty('--viz-series-1',v.viz);}}catch(e){document.documentElement.classList.add('light');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

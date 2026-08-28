@@ -25,6 +25,15 @@ export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique("tenants_slug_key"),
+  /**
+   * White-labelling: logo and accent colour.
+   *
+   * jsonb rather than columns because the next three branding knobs then cost
+   * no migration, matching how agent_keys.permissions and plugins.manifest are
+   * already shaped. Deliberately NOT added to the login query, which runs
+   * before the password check — every failed attempt would detoast the logo.
+   */
+  branding: jsonb("branding").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

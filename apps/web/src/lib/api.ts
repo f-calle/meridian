@@ -25,6 +25,27 @@ export interface AttentionSummary {
   overdueValue: number;
 }
 
+export interface AccentVariant {
+  primary: string;
+  primaryForeground: string;
+  ring: string;
+  viz: string;
+  contrast: number;
+}
+
+export interface AccentVariants {
+  light: AccentVariant;
+  dark: AccentVariant;
+}
+
+export interface Branding {
+  accent?: { h: number; s: number };
+  logo?: { dataUri: string; mime: string; bytes: number; width: number; height: number };
+  logoAlt?: string;
+  /** Derived server-side so the client never re-does the contrast search. */
+  variants: AccentVariants | null;
+}
+
 export interface DashboardMetrics {
   openCount: number;
   openValue: number;
@@ -74,7 +95,13 @@ export function clearToken() {
 }
 
 /** Decode the signed token's payload (name/email/role) for display purposes. */
-export function getCurrentUser(): { id?: string; name?: string; email?: string; role?: string } | null {
+export function getCurrentUser(): {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  tenantName?: string;
+} | null {
   const token = getToken();
   if (!token) return null;
   try {
@@ -167,6 +194,15 @@ export const api = {
     ),
 
   /** What needs the user today, ranked. Powers the home page's work queue. */
+  getBranding: () => apiFetch<Branding>("/api/branding"),
+
+  /** Admin-only. `null` for accent or logo clears it. */
+  updateBranding: (body: {
+    accent?: { h: number; s: number } | null;
+    logo?: string | null;
+    logoAlt?: string;
+  }) => apiFetch<Branding>("/api/branding", { method: "POST", body: JSON.stringify(body) }),
+
   /** The figures the home page leads with. */
   metrics: () => apiFetch<DashboardMetrics>("/api/dashboard/metrics"),
 

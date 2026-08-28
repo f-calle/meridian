@@ -35,6 +35,7 @@ import { ApiError, respondToError } from "./errors.js";
 import type { App, AppContext, AppEnv } from "./app-env.js";
 import { registerUserRoutes } from "./users.js";
 import { registerPdfRoutes } from "./pdf.js";
+import { registerBrandingRoutes } from "./branding.js";
 import { runMigrations, seedDemoTenant } from "@meridian/core";
 import { hooks as examplePluginHooks } from "meridian-example-plugin";
 import type { ActorContext } from "@meridian/core";
@@ -419,6 +420,7 @@ app.post("/api/ai/chat", async (c) => {
 
 registerUserRoutes(app, getActor);
 registerPdfRoutes(app, getActor);
+registerBrandingRoutes(app, getActor);
 
 // Draft an automation rule from an English description
 app.post("/api/ai/automation/draft", async (c) => {

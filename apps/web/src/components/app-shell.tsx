@@ -29,7 +29,8 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MeridianLogo } from "@/components/meridian-logo";
-import { getToken, clearToken } from "@/lib/api";
+import { getToken, clearToken, getCurrentUser } from "@/lib/api";
+import { readBrandingCache } from "@/lib/branding";
 import { CommandPalette } from "@/components/command-palette";
 import { AiChat } from "@/components/ai-chat";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -259,6 +260,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // A tenant that uploaded its own logo should not see "MERIDIAN" beside it.
+  const [workspaceName, setWorkspaceName] = useState("Meridian");
+  useEffect(() => {
+    const branded = Boolean(readBrandingCache()?.logo);
+    const tenant = getCurrentUser()?.tenantName;
+    if (branded && tenant) setWorkspaceName(tenant);
+  }, []);
 
   useEffect(() => {
     if (!getToken()) router.push("/");
@@ -285,7 +293,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="glass-sidebar hidden w-[260px] shrink-0 flex-col md:flex">
         <div className="flex h-14 items-center gap-3 border-b border-border/80 px-6">
           <MeridianLogo size="sm" />
-          <span className="font-bold tracking-tight">MERIDIAN</span>
+          <span className="truncate font-bold tracking-tight">{workspaceName}</span>
         </div>
         <nav className="scrollbar-thin flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-4" aria-label="Main navigation">
           <NavLinks pathname={pathname} />

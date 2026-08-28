@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MeridianLogo } from "@/components/meridian-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { api, setToken } from "@/lib/api";
+import { applyBranding, currentTheme, writeBrandingCache } from "@/lib/branding";
 import { usePageTitle } from "@/hooks/use-page-title";
 
 export default function LoginPage() {
@@ -27,6 +28,24 @@ export default function LoginPage() {
     try {
       const { token } = await api.login(email, password);
       setToken(token);
+      // Fetch before navigating: the dashboard's pre-paint script reads this
+      // cache, so writing it first is what makes the branded first paint work.
+      try {
+        const branding = await api.getBranding();
+        const cache = {
+          variants: branding.variants,
+          logo: branding.logo
+            ? { dataUri: branding.logo.dataUri, alt: branding.logoAlt ?? "" }
+            : null,
+        };
+        writeBrandingCache(cache);
+        // Apply now as well as caching it: the pre-paint script only runs on a
+        // full page load, and this navigation is client-side, so without this
+        // the first branded view is the one after a manual refresh.
+        applyBranding(cache, currentTheme());
+      } catch {
+        // Branding is decoration; never block a successful sign-in on it.
+      }
       router.push("/dashboard");
     } catch (err) {
       setError((err as Error).message || "Sign in failed. Check your email and password, then try again.");

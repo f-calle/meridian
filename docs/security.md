@@ -121,6 +121,30 @@ importing cannot alter the source system. Connection errors are logged and
 answered with a fixed message, because the request that produced them carried
 Odoo credentials.
 
+## Tenant branding
+
+Logos are stored as data URIs on the tenant row, not in object storage — the
+deployment story is that Postgres is the only stateful dependency, and this
+keeps `pg_dump` a complete backup.
+
+Uploads are restricted to PNG and JPEG, identified by sniffing the file's own
+magic bytes; the `data:` prefix is rebuilt from what was sniffed, so a caller
+posting `data:text/html;base64,…` cannot get that string persisted and echoed
+back. Dimensions are read from the image header and capped at 4096px, which
+rejects a decompression bomb before anything decodes it. Size is capped at
+256 KB decoded, checked after a base64 round-trip so padding tricks don't slip
+past.
+
+SVG is refused rather than sanitised. Nothing in the API's dependencies can
+sanitise it; even script-inert SVG can fetch an external resource from an
+`<img>`, making the logo a tracking beacon that fires for every user in the
+tenant; and the stored value outlives the assumption that it is only ever put
+in an `<img>` — the quote and invoice PDFs are the obvious next consumer.
+
+Only admins can write branding; any signed-in user can read their own tenant's.
+There is no unauthenticated branding endpoint, because one keyed by tenant slug
+would let anyone enumerate the tenants on a deployment.
+
 ## Operational notes
 
 - The demo tenant (`admin@demo.com`) takes its password from

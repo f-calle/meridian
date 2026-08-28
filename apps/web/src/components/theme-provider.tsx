@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { applyBranding, readBrandingCache } from "@/lib/branding";
 
 type Theme = "light" | "dark";
 
@@ -19,6 +20,9 @@ function applyTheme(theme: Theme) {
   root.classList.remove("light", "dark");
   root.classList.add(theme);
   root.style.colorScheme = theme;
+  // The two accent variants are different colours, so switching theme must
+  // re-apply the accent in the same synchronous call.
+  applyBranding(readBrandingCache(), theme);
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
     meta.removeAttribute("media");
     meta.setAttribute("content", theme === "dark" ? "#0f1114" : "#ffffff");

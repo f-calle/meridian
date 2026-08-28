@@ -18,6 +18,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { api, clearToken, type TeamUser } from "@/lib/api";
+import { BrandingCard } from "@/components/branding-card";
 
 const ROLES = ["admin", "sales", "member"] as const;
 
@@ -121,6 +122,8 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-sm text-muted-foreground">Team members and your account</p>
       </div>
+
+      <BrandingCard canEdit={isAdmin} />
 
       {isAdmin && (
         <Card>
