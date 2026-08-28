@@ -36,7 +36,18 @@ export interface EntityDefinition {
   label: string;
   pluralLabel?: string;
   fields: Record<string, FieldDefinition>;
-  permissions: Record<string, PermissionMatrix>;
+  /**
+   * What kind of data this holds, which is what the central role table keys
+   * off. An entity that declares none is treated as config — admin-only — so a
+   * third-party entity is closed until someone says otherwise.
+   */
+  sensitivity?: import("./acl/roles.js").EntityClass;
+  /**
+   * Per-entity exceptions to the role defaults. Optional: the central table in
+   * acl/roles.ts is the source of truth, and a map here is a deliberate,
+   * reviewed override for one entity.
+   */
+  permissions?: Record<string, PermissionMatrix>;
   lifecycle?: {
     onCreate?: string[];
     onUpdate?: string[];

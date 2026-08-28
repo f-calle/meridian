@@ -38,13 +38,64 @@ lookup per request.
 
 ## Authorization
 
-Every entity declares a per-role permission matrix, checked on create, read,
-update and delete. Denials surface as 403 — a distinct status from 400 — so a
-client can tell "you may not" from "your input was wrong".
+Roles are defined once, in `packages/core/src/acl/roles.ts`, against what a kind
+of data **is** rather than against each table:
+
+| Class | Holds |
+| --- | --- |
+| `crm` | customers, deals, quotes |
+| `finance` | invoices and the product catalogue |
+| `delivery` | projects, tasks, time, milestones |
+| `collaboration` | comments and logged activity |
+| `config` | automations, pipeline definitions |
+
+| Role | Does |
+| --- | --- |
+| `owner` | Everything, plus billing. Cannot be demoted or removed by an admin. |
+| `admin` | Everything except billing. Invites and removes people. |
+| `finance` | Owns invoices and the catalogue. Reads the rest. |
+| `sales` | Owns customers, deals and quotes. Reads invoices. |
+| `member` | Does the work: projects, tasks, time. Reads customers and documents. |
+| `viewer` | Reads everything, changes nothing. |
+| `agent` | AI and automation. Reads broadly, drafts work, never writes money or config. |
+
+This replaced a permission matrix on every entity, a mechanism that had already
+failed: `member` was read-only in the CRM and commerce files but
+create-read-update in the projects file, because each declared its own local
+constant. The same role meant two things depending on which file an entity
+happened to live in. Adding a role was fourteen edits across four files, and
+missing one produced a 403 on exactly one entity — on a dashboard, an invisible
+empty section rather than an error.
+
+Two separations are deliberate. **Sales can write quotes but not invoices**: the
+person who closes the deal should not also be the person who bills for it and
+marks it paid. **The agent role cannot write money documents at all**, so an
+unattended AI actor is never in a position to change what a customer owes.
+
+An entity may still declare a `permissions` map as an explicit exception; the
+central table is the default, and an entity that classifies itself as nothing is
+treated as config — admin-only — so a third-party entity is closed until someone
+says otherwise.
+
+`ActorContext.permissions` is a **ceiling, not a grant**. It used to sit in front
+of the role and win outright, so anything that could attach a permission map to
+an actor could hand itself rights its role did not have, with nothing bounding
+what went in it. It can now only narrow.
 
 Every query is scoped to the actor's `tenant_id`. Sort, filter and group-by
 column names are resolved against the entity definition rather than
 interpolated, so a query parameter cannot reach the SQL.
+
+`users.role` carries a check constraint and no longer defaults to `admin` — any
+insert that forgot to set a role previously created an administrator.
+
+**Lockout is not reachable.** Neither changing a role nor deleting a user may
+leave a workspace with nobody holding `manage:users`, counted over the
+capability rather than the literal string "admin". Only an owner may add, demote
+or remove another owner — except in a workspace that has none, where an admin
+may appoint the first, after which the rule closes behind them. Deleting
+previously had no guard at all beyond self-deletion, so with two admins either
+could simply delete the other.
 
 Metadata endpoints (`/api/entities`, `/api/entities/:name/schema`,
 `/api/plugins`, the migration preset lists) require authentication. They describe

@@ -29,6 +29,13 @@
       "when": 1787930352390,
       "tag": "0003_tenant_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787953980153,
+      "tag": "0004_user_role_constraint",
+      "breakpoints": true
     }
   ]
 }

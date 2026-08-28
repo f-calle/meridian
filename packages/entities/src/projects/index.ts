@@ -1,11 +1,9 @@
 import { defineEntity, field } from "@meridian/core";
 
-const adminPerms = { create: true, read: true, update: true, delete: true };
-const memberPerms = { create: true, read: true, update: true, delete: false };
-const agentPerms = { create: true, read: true, update: true, delete: false };
 
 export const ProjectEntity = defineEntity({
   name: "project",
+  sensitivity: "delivery",
   label: "Project",
   pluralLabel: "Projects",
   externalId: true,
@@ -22,12 +20,6 @@ export const ProjectEntity = defineEntity({
     deadline: field.date({ label: "Deadline" }),
     managerId: field.string({ label: "Project Manager" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: memberPerms,
-    member: memberPerms,
-    agent: agentPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -36,6 +28,7 @@ export const ProjectEntity = defineEntity({
 
 export const TaskEntity = defineEntity({
   name: "task",
+  sensitivity: "delivery",
   label: "Task",
   pluralLabel: "Tasks",
   externalId: true,
@@ -56,12 +49,6 @@ export const TaskEntity = defineEntity({
     dueDate: field.date({ label: "Due Date" }),
     estimatedHours: field.number({ label: "Estimated Hours" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: memberPerms,
-    member: memberPerms,
-    agent: agentPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -70,6 +57,7 @@ export const TaskEntity = defineEntity({
 
 export const TimeEntryEntity = defineEntity({
   name: "time_entry",
+  sensitivity: "delivery",
   label: "Time Entry",
   pluralLabel: "Time Entries",
   externalId: true,
@@ -82,12 +70,6 @@ export const TimeEntryEntity = defineEntity({
     description: field.text({ label: "Description" }),
     billable: field.boolean({ label: "Billable", default: true }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: memberPerms,
-    member: memberPerms,
-    agent: agentPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -96,6 +78,7 @@ export const TimeEntryEntity = defineEntity({
 
 export const MilestoneEntity = defineEntity({
   name: "milestone",
+  sensitivity: "delivery",
   label: "Milestone",
   pluralLabel: "Milestones",
   fields: {
@@ -107,12 +90,6 @@ export const MilestoneEntity = defineEntity({
       default: "pending",
     }),
     description: field.text({ label: "Description" }),
-  },
-  permissions: {
-    admin: adminPerms,
-    sales: memberPerms,
-    member: memberPerms,
-    agent: agentPerms,
   },
   lifecycle: {
     onCreate: ["audit.log"],

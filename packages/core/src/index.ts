@@ -3,6 +3,15 @@ export { entityRegistry, registerEntities } from "./entity/registry.js";
 export { entityToJsonSchema, getEntityUiMeta } from "./entity/json-schema.js";
 export { validateEntityData, buildEntityZodSchema } from "./entity/validation.js";
 export { checkPermission, getEffectivePermissions, PermissionError, isPermissionError } from "./acl/permissions.js";
+export {
+  ROLES,
+  ROLE_NAMES,
+  ASSIGNABLE_ROLES,
+  isRoleName,
+  defaultAccess,
+  hasCapability,
+} from "./acl/roles.js";
+export type { RoleName, RoleDefinition, EntityClass, Capability } from "./acl/roles.js";
 export { eventBus, hookRegistry } from "./events/event-bus.js";
 export { pluginManager, PluginManager } from "./plugins/plugin-manager.js";
 export { entityService, EntityService, coerceFromDb } from "./services/entity-service.js";

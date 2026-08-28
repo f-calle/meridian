@@ -73,7 +73,7 @@ export async function seedDemoTenant(): Promise<boolean> {
   const passwordHash = hashPassword(demoAdminPassword());
   await db.execute(sql`
     INSERT INTO users (tenant_id, email, name, role, password_hash)
-    VALUES (${tenantId}, 'admin@demo.com', 'Demo Admin', 'admin', ${passwordHash})
+    VALUES (${tenantId}, 'admin@demo.com', 'Demo Admin', 'owner', ${passwordHash})
   `);
 
   // Demo automation: winning a deal spins up a delivery project automatically

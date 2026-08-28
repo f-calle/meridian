@@ -29,11 +29,24 @@ describe("checkPermission", () => {
     expect(() => checkPermission(Entity, actor("stranger"), "read")).toThrow(PermissionError);
   });
 
-  it("honors actor permission overrides", () => {
-    const overridden: ActorContext = {
+  it("refuses to let an actor override grant more than its role", () => {
+    // This test used to assert the opposite. The override sat in front of the
+    // role and won outright, so anything that could attach a permission map to
+    // an actor could hand itself rights the role does not have — and nothing
+    // validated or bounded what went in it. It is a ceiling now, not a grant.
+    const escalated: ActorContext = {
       ...actor("member"),
       permissions: { guarded: { create: true, read: true, update: true, delete: true } },
     };
-    expect(() => checkPermission(Entity, overridden, "delete")).not.toThrow();
+    expect(() => checkPermission(Entity, escalated, "delete")).toThrow(PermissionError);
+  });
+
+  it("lets an actor override narrow below the role", () => {
+    const restricted: ActorContext = {
+      ...actor("admin"),
+      permissions: { guarded: { create: false, read: true, update: false, delete: false } },
+    };
+    expect(() => checkPermission(Entity, restricted, "read")).not.toThrow();
+    expect(() => checkPermission(Entity, restricted, "delete")).toThrow(PermissionError);
   });
 });

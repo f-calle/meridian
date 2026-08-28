@@ -17,17 +17,35 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { api, clearToken, type TeamUser } from "@/lib/api";
+import { api, clearToken, getCurrentUser, type TeamUser } from "@/lib/api";
 import { BrandingCard } from "@/components/branding-card";
 
-const ROLES = ["admin", "sales", "member"] as const;
+/**
+ * Assignable roles, with the job each one does — a dropdown of bare words makes
+ * the person inviting guess, and guessing wrong is how a bookkeeper ends up an
+ * admin. `owner` is offered only to an owner; `agent` is issued with a key, not
+ * assigned here.
+ */
+const ROLES: { value: string; label: string; description: string; ownerOnly?: boolean }[] = [
+  { value: "owner", label: "Owner", description: "Everything, plus billing", ownerOnly: true },
+  { value: "admin", label: "Admin", description: "Everything except billing" },
+  { value: "finance", label: "Finance", description: "Owns quotes, invoices and the catalogue" },
+  { value: "sales", label: "Sales", description: "Owns customers, deals and quotes" },
+  { value: "member", label: "Member", description: "Projects, tasks and time" },
+  { value: "viewer", label: "Viewer", description: "Read-only" },
+];
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(true);
+  // Read the role from the signed token rather than inferring it from a failed
+  // request — the old code guessed by matching the word "Admin" in an error
+  // message, so any unrelated failure containing it flipped the whole UI.
+  const currentRole = getCurrentUser()?.role ?? "";
+  const isAdmin = currentRole === "admin" || currentRole === "owner";
+  const isOwner = currentRole === "owner";
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState({ name: "", email: "", role: "member", password: "" });
   const [inviting, setInviting] = useState(false);
@@ -42,10 +60,11 @@ export default function SettingsPage() {
     try {
       const result = await api.listUsers();
       setUsers(result.users);
-      setIsAdmin(true);
     } catch (err) {
-      if ((err as Error).message.includes("Admin")) setIsAdmin(false);
-      else toast({ title: "Failed to load team", description: (err as Error).message, variant: "destructive" });
+      // A non-admin simply has no team list; anything else is worth surfacing.
+      if (!/admin access/i.test((err as Error).message)) {
+        toast({ title: "Failed to load team", description: (err as Error).message, variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -151,8 +170,10 @@ export default function SettingsPage() {
                         className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                         aria-label={`Role for ${user.name}`}
                       >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>{r}</option>
+                        {ROLES.filter((r) => !r.ownerOnly || isOwner).map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
                         ))}
                       </select>
                       <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(user)} aria-label={`Remove ${user.name}`}>
@@ -217,8 +238,10 @@ export default function SettingsPage() {
                 value={invite.role}
                 onChange={(e) => setInvite({ ...invite, role: e.target.value })}
               >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                {ROLES.filter((r) => !r.ownerOnly || isOwner).map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label} — {r.description}
+                  </option>
                 ))}
               </select>
             </div>

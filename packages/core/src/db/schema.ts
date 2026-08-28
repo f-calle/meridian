@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   pgTable,
   uuid,
   text,
@@ -45,7 +47,13 @@ export const users = pgTable(
     tenantId: uuid("tenant_id").notNull(),
     email: text("email").notNull(),
     name: text("name").notNull(),
-    role: text("role").notNull().default("admin"),
+    /**
+     * No default. It used to default to "admin", so any insert that forgot to
+     * set a role — a script, a fix-up, a future signup path — silently created
+     * an administrator. Callers must now say what they mean, and the check
+     * constraint below rejects anything that is not a real role.
+     */
+    role: text("role").notNull(),
     passwordHash: text("password_hash").notNull(),
     /**
      * Bumped whenever every existing session for this user should stop working
@@ -66,6 +74,7 @@ export const users = pgTable(
     }),
     unique("users_tenant_id_email_key").on(table.tenantId, table.email),
     index("users_tenant_idx").on(table.tenantId),
+    check("users_role_check", sql`${table.role} IN ('owner','admin','finance','sales','member','viewer','agent')`),
   ],
 );
 

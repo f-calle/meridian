@@ -1,11 +1,9 @@
 import { defineEntity, field } from "@meridian/core";
 
-const adminPerms = { create: true, read: true, update: true, delete: true };
-const salesPerms = { create: true, read: true, update: true, delete: false };
-const memberPerms = { create: false, read: true, update: false, delete: false };
 
 export const ContactEntity = defineEntity({
   name: "contact",
+  sensitivity: "crm",
   label: "Contact",
   pluralLabel: "Contacts",
   externalId: true,
@@ -19,12 +17,6 @@ export const ContactEntity = defineEntity({
     tags: field.multiselect(["lead", "customer", "partner", "vendor"], { label: "Tags" }),
     notes: field.text({ label: "Notes" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -33,6 +25,7 @@ export const ContactEntity = defineEntity({
 
 export const CompanyEntity = defineEntity({
   name: "company",
+  sensitivity: "crm",
   label: "Company",
   pluralLabel: "Companies",
   externalId: true,
@@ -48,12 +41,6 @@ export const CompanyEntity = defineEntity({
     phone: field.phone({ label: "Phone" }),
     address: field.text({ label: "Address" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -62,6 +49,8 @@ export const CompanyEntity = defineEntity({
 
 export const PipelineEntity = defineEntity({
   name: "pipeline",
+  // Stage definitions are configuration, not customer data — an ops job, not a rep's.
+  sensitivity: "config",
   label: "Pipeline",
   pluralLabel: "Pipelines",
   fields: {
@@ -69,16 +58,11 @@ export const PipelineEntity = defineEntity({
     stages: field.json({ label: "Stages", default: ["lead", "qualified", "proposal", "won", "lost"] }),
     isDefault: field.boolean({ label: "Default Pipeline", default: false }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: { ...salesPerms, delete: false },
-    member: memberPerms,
-    agent: memberPerms,
-  },
 });
 
 export const DealEntity = defineEntity({
   name: "deal",
+  sensitivity: "crm",
   label: "Deal",
   pluralLabel: "Deals",
   externalId: true,
@@ -108,12 +92,6 @@ export const DealEntity = defineEntity({
      */
     closedAt: field.date({ label: "Closed Date" }),
     notes: field.text({ label: "Notes" }),
-  },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
   },
   /**
    * Stamp closedAt when the deal reaches a closed stage, clear it if the deal
@@ -146,6 +124,8 @@ export const DealEntity = defineEntity({
 
 export const ActivityEntity = defineEntity({
   name: "activity",
+  // A logged call or email is work recorded against a record, not master data.
+  sensitivity: "collaboration",
   label: "Activity",
   pluralLabel: "Activities",
   externalId: true,
@@ -164,12 +144,6 @@ export const ActivityEntity = defineEntity({
     dueDate: field.datetime({ label: "Due Date" }),
     completed: field.boolean({ label: "Completed", default: false }),
     assignedTo: field.string({ label: "Assigned To" }),
-  },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: { ...memberPerms, create: true, update: true },
-    agent: salesPerms,
   },
   lifecycle: {
     onCreate: ["audit.log"],

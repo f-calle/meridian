@@ -1,8 +1,5 @@
 import { defineEntity, field } from "@meridian/core";
 
-const adminPerms = { create: true, read: true, update: true, delete: true };
-const salesPerms = { create: true, read: true, update: true, delete: false };
-const memberPerms = { create: false, read: true, update: false, delete: false };
 
 /**
  * Line items on quotes/invoices are stored as a JSON array:
@@ -11,6 +8,7 @@ const memberPerms = { create: false, read: true, update: false, delete: false };
  */
 export const ProductEntity = defineEntity({
   name: "product",
+  sensitivity: "finance",
   label: "Product",
   pluralLabel: "Products",
   externalId: true,
@@ -23,12 +21,6 @@ export const ProductEntity = defineEntity({
     active: field.boolean({ label: "Active", default: true }),
     description: field.text({ label: "Description" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -37,6 +29,8 @@ export const ProductEntity = defineEntity({
 
 export const QuoteEntity = defineEntity({
   name: "quote",
+  // A quote is a selling document the rep owns. An invoice is money owed and is not.
+  sensitivity: "crm",
   label: "Quote",
   pluralLabel: "Quotes",
   externalId: true,
@@ -58,12 +52,6 @@ export const QuoteEntity = defineEntity({
     total: field.currency({ label: "Total", default: 0 }),
     notes: field.text({ label: "Notes" }),
   },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
-  },
   lifecycle: {
     onCreate: ["audit.log"],
     onUpdate: ["audit.log"],
@@ -72,6 +60,7 @@ export const QuoteEntity = defineEntity({
 
 export const InvoiceEntity = defineEntity({
   name: "invoice",
+  sensitivity: "finance",
   label: "Invoice",
   pluralLabel: "Invoices",
   externalId: true,
@@ -91,12 +80,6 @@ export const InvoiceEntity = defineEntity({
     tax: field.currency({ label: "Tax", default: 0 }),
     total: field.currency({ label: "Total", default: 0 }),
     notes: field.text({ label: "Notes" }),
-  },
-  permissions: {
-    admin: adminPerms,
-    sales: salesPerms,
-    member: memberPerms,
-    agent: salesPerms,
   },
   lifecycle: {
     onCreate: ["audit.log"],
