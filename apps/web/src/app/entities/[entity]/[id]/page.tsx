@@ -284,7 +284,7 @@ export default function EntityDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <Card className="glass-card rounded-xl shadow-layered lg:col-span-8">
+        <Card className="glass-card rounded-xl shadow-layered lg:col-span-8 lg:col-start-1 lg:row-start-1">
           <CardHeader className="border-b border-border/80 bg-muted/20">
             <CardTitle className="text-sm font-bold tracking-tight">
               {editing ? `Edit ${schema.label}` : "Basic Information"}
@@ -303,20 +303,18 @@ export default function EntityDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Placed here rather than in the sidebar below: the grid leaves the
-            top-right cell empty beside Basic Information, which is where a
-            reference panel belongs — beside the fields it explains. */}
-        {devMode && (
-          <div className="lg:col-span-4">
-            <DevInspector entity={entity} record={record} fields={schema.fields} />
-          </div>
-        )}
-
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-8 lg:col-start-1 lg:row-start-2">
           <RelatedRecordsPanel entity={entity} id={id} />
         </div>
 
-        <div className="space-y-6 lg:col-span-4">
+        {/*
+          One sidebar spanning both rows, placed explicitly rather than left to
+          auto-flow. Flowing it left the cell beside Basic Information empty
+          and pushed the conversation about this record below the fold, which
+          is a strange place for the part people actually write in.
+        */}
+        <div className="space-y-6 lg:col-span-4 lg:col-start-9 lg:row-span-2 lg:row-start-1">
+          {devMode && <DevInspector entity={entity} record={record} fields={schema.fields} />}
           <EntityComments entity={entity} recordId={id} />
           <EntityAuditTimeline entity={entity} recordId={id} compact />
         </div>
