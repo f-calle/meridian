@@ -44,6 +44,15 @@ export {
 } from "./auth/sessions.js";
 export { collectAttention, rankAttention } from "./services/attention.js";
 export { collectSchedule, rankSchedule, parseDayWindow, serverDayWindow } from "./services/schedule.js";
+export {
+  refreshDemoSchedule,
+  refreshConfiguredDemoTenant,
+  findTenantIdBySlug,
+  shiftInstantToDay,
+  toIsoInstant,
+  DEMO_SOURCE_SYSTEM,
+} from "./services/demo-refresh.js";
+export type { DemoRefreshResult } from "./services/demo-refresh.js";
 export { collectRelated } from "./services/related.js";
 export { collectMetrics } from "./services/metrics.js";
 export { collectReports } from "./services/reports.js";

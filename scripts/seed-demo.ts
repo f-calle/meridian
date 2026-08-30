@@ -53,6 +53,36 @@ async function findOrCreate(
   return { id: c.id, created: true };
 }
 
+/**
+ * Written to `sourceSystem` on the records anchored to today.
+ *
+ * The scheduled refresher moves exactly these onto the current day, so the
+ * marker is what keeps it away from everything else in the tenant.
+ */
+const DEMO_SOURCE_SYSTEM = "demo-seed";
+
+/**
+ * Create the record if absent, then force its schedule fields either way.
+ *
+ * Plain find-or-create is not enough for the day-anchored rows: on a re-run
+ * they already exist, so they would keep the date of the day the seed first
+ * ran and the Today panel would stay empty. Re-anchoring makes the seed itself
+ * a refresh.
+ */
+async function findOrAnchor(
+  entity: string,
+  field: string,
+  value: string,
+  data: Record<string, unknown>,
+  anchor: Record<string, unknown>,
+): Promise<string> {
+  const r = await findOrCreate(entity, field, value, { ...data, ...anchor, sourceSystem: DEMO_SOURCE_SYSTEM });
+  if (!r.created) {
+    await call(`/api/${entity}/update`, "POST", { id: r.id, ...anchor, sourceSystem: DEMO_SOURCE_SYSTEM });
+  }
+  return r.id;
+}
+
 function daysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 }
@@ -414,15 +444,13 @@ async function main() {
     // A typo in a project name would otherwise create a task with no project
     // and no complaint, and the seed would look like it worked.
     if (!projects[project]) throw new Error(`Task "${title}" names an unknown project: ${project}`);
-    const r = await findOrCreate("task", "title", title, {
-      title,
-      projectId: projects[project],
-      status,
-      priority,
-      dueDate: daysFromNow(due),
-      estimatedHours,
-    });
-    tasks[title] = r.id;
+    const base = { title, projectId: projects[project], status, priority, estimatedHours };
+    // Every task lands in the map either way — a later section looks tasks up
+    // by title, and a silently absent id would become an undefined foreign key.
+    tasks[title] =
+      due === 0
+        ? await findOrAnchor("task", "title", title, base, { dueDate: daysFromNow(0) })
+        : (await findOrCreate("task", "title", title, { ...base, dueDate: daysFromNow(due) })).id;
   }
   console.log(`projects: ${projectDefs.length}, tasks: ${taskDefs.length}`);
 
@@ -469,13 +497,15 @@ async function main() {
     ["call", "Follow up: Orbit firmware pipeline scope", "deal", -5, false],
   ];
   for (const [type, subject, relatedEntity, due, completed, hour] of activityDefs) {
-    await findOrCreate("activity", "subject", subject, {
-      type,
-      subject,
-      relatedEntity,
-      dueDate: hour === undefined ? new Date(Date.now() + due * 86_400_000).toISOString() : atHour(due, hour),
-      completed,
-    });
+    const base = { type, subject, relatedEntity, completed };
+    if (hour === undefined) {
+      await findOrCreate("activity", "subject", subject, {
+        ...base,
+        dueDate: new Date(Date.now() + due * 86_400_000).toISOString(),
+      });
+      continue;
+    }
+    await findOrAnchor("activity", "subject", subject, base, { dueDate: atHour(due, hour) });
   }
 
   const teCount = await call<{ total: number }>("/api/time_entry/list?pageSize=1");
