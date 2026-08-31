@@ -146,11 +146,13 @@
 
   /* Bottom fade for a panel that scrolls internally: a row dissolving at the
      edge reads as "more inside this panel", where a hard clip reads as a page
-     that was cut off. Sized to land on the scroller's own bottom padding once
-     scrolled to the end, so no content is ever left permanently dimmed. */
+     that was cut off. The mask rides the scrollport, so every scroller using
+     it MUST reserve at least the fade depth (24px = pb-6) as bottom padding —
+     that way the fade lands on padding at maximum scroll and no content is
+     ever left permanently dimmed. */
   .scroll-fade-b {
-    mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
-    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
   }
 
   .scrollbar-thin::-webkit-scrollbar {

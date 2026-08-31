@@ -138,7 +138,10 @@ export default function PipelinePage() {
                     {currency.format(totalValue)}
                   </span>
                 </div>
-                <div className="scrollbar-thin lg:scroll-fade-b min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-2">
+                {/* lg:pb-6 reserves the scroll-fade-b depth, so the fade sits
+                    on padding at maximum scroll instead of dimming the last
+                    deal card. */}
+                <div className="scrollbar-thin lg:scroll-fade-b min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-2 lg:pb-6">
                   {stageDeals.map((deal) => (
                     <div
                       key={deal.id}

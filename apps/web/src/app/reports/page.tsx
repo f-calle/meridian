@@ -94,7 +94,7 @@ export default function ReportsPage() {
     return (
       <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
         <Skeleton className="mb-4 h-8 w-40" />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-72 rounded-xl" />
           ))}
@@ -130,7 +130,10 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:min-h-[24rem] lg:flex-1 lg:grid-cols-3 lg:grid-rows-2">
+      {/* Two columns at lg, three at xl: under the 260px sidebar a 1024px
+          viewport leaves ~230px per card in three columns, which is less than
+          BarChart's fixed label column plus a value — the bars get nothing. */}
+      <div className="grid grid-cols-1 gap-4 lg:min-h-[24rem] lg:flex-1 lg:grid-cols-2 lg:grid-rows-3 xl:grid-cols-3 xl:grid-rows-2">
         <Report
           title="Receivables aging"
           question="How much am I owed, and how late is it?"
