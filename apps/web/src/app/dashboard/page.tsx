@@ -34,6 +34,13 @@ import { api, type AttentionSummary, type DashboardMetrics } from "@/lib/api";
  * steers by, and the biggest is the weighted forecast rather than the raw
  * pipeline, because "$1.7M in play" and "$717k realistically landing" are very
  * different claims and only one of them is a plan.
+ *
+ * On desktop the page is pinned to the viewport: header and stat tiles stay
+ * put, and the queue and side rail each scroll internally. A command center
+ * you have to scroll hides exactly the overflow it exists to surface — item
+ * thirteen below the fold is an item you will not act on. Below lg the panels
+ * stack and the page scrolls normally; locking a phone screen into four
+ * competing scroll regions would be the opposite of the fix.
  */
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -116,8 +123,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8 lg:flex lg:h-full lg:flex-col">
+      <header className="mb-6 flex shrink-0 flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-balance text-2xl font-bold tracking-tight md:text-3xl">
             {greeting()}
@@ -151,7 +158,7 @@ export default function DashboardPage() {
       </header>
 
       {error && (
-        <Card className="mb-6 border-destructive/30 shadow-layered">
+        <Card className="mb-6 shrink-0 border-destructive/30 shadow-layered">
           <CardContent className="flex items-start gap-3 py-5">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
             <div>
@@ -164,7 +171,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-6 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
         {loading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)
         ) : (
@@ -208,14 +215,17 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      {/* The min-h floor is the escape hatch for short windows: rather than
+          crushing the panels into letterboxes, the page falls back to
+          scrolling as a whole. */}
+      <div className="grid grid-cols-12 gap-6 lg:min-h-[20rem] lg:flex-1">
         <div className="col-span-12 lg:hidden">
           <TodayCard />
         </div>
 
-        <div className="col-span-12 lg:col-span-7 xl:col-span-8">
-          <Card className="glass-card shadow-layered">
-            <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/80 bg-muted/20 pb-4">
+        <div className="col-span-12 lg:col-span-7 xl:col-span-8 lg:min-h-0">
+          <Card className="glass-card shadow-layered lg:flex lg:h-full lg:flex-col">
+            <CardHeader className="shrink-0 flex-row items-center justify-between space-y-0 border-b border-border/80 bg-muted/20 pb-4">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Needs you
               </CardTitle>
@@ -225,13 +235,15 @@ export default function DashboardPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent className="pt-4">
+            <CardContent className="scrollbar-thin pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               <AttentionQueue items={attention?.items ?? []} loading={loading} />
             </CardContent>
           </Card>
         </div>
 
-        <div className="col-span-12 space-y-4 lg:col-span-5 xl:col-span-4">
+        {/* The -m/p pair widens the scrollport by a hair so card borders and
+            shadows aren't shaved off at the clipping edge. */}
+        <div className="scrollbar-thin col-span-12 space-y-4 lg:col-span-5 xl:col-span-4 lg:-m-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:p-1">
           <TodayCard className="hidden lg:block" />
 
           <Card className="glass-card border-primary/20 shadow-layered">
