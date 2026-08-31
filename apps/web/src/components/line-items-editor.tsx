@@ -36,9 +36,9 @@ export function LineItemsView({ value }: { value: unknown }) {
   const lines = normalizeLines(value);
   if (lines.length === 0) return <span className="text-sm text-muted-foreground">No line items</span>;
   return (
-    <div className="overflow-hidden rounded-lg border border-border/80">
+    <div className="scrollbar-thin max-h-[45vh] overflow-auto overscroll-contain rounded-lg border border-border/80">
       <table className="w-full text-sm">
-        <thead>
+        <thead className="sticky-table-header">
           <tr className="border-b border-border/80 bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 text-left font-semibold">Description</th>
             <th className="px-3 py-2 text-right font-semibold">Qty</th>
@@ -96,9 +96,9 @@ export function LineItemsEditor({
 
   return (
     <div className="mt-1.5 space-y-2">
-      <div className="overflow-hidden rounded-lg border border-border/80">
+      <div className="scrollbar-thin max-h-[45vh] overflow-auto overscroll-contain rounded-lg border border-border/80">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky-table-header">
             <tr className="border-b border-border/80 bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <th className="px-2 py-2 text-left font-semibold">Description</th>
               <th className="w-16 px-2 py-2 text-right font-semibold">Qty</th>

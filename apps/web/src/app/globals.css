@@ -135,6 +135,24 @@
     touch-action: manipulation;
   }
 
+  /* Header row of a table whose container scrolls vertically. The dividing
+     line is a shadow rather than the row's border because collapsed table
+     borders don't travel with a sticky header; the opaque backing stops rows
+     showing through as they pass underneath. */
+  .sticky-table-header {
+    @apply sticky top-0 z-10 bg-background;
+    box-shadow: 0 1px 0 hsl(var(--border) / 0.8);
+  }
+
+  /* Bottom fade for a panel that scrolls internally: a row dissolving at the
+     edge reads as "more inside this panel", where a hard clip reads as a page
+     that was cut off. Sized to land on the scroller's own bottom padding once
+     scrolled to the end, so no content is ever left permanently dimmed. */
+  .scroll-fade-b {
+    mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;

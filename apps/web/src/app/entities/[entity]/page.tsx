@@ -509,10 +509,7 @@ export default function EntityListPage() {
           ) : (
           <div className="overflow-hidden rounded-xl border border-border/80 shadow-layered lg:flex lg:min-h-0 lg:flex-col">
             <Table containerClassName="scrollbar-thin lg:min-h-0 lg:overscroll-contain">
-              {/* Opaque backing plus a shadow underline: rows scroll beneath
-                  the sticky header, and the collapsed-border model doesn't
-                  reliably carry the row border along with it. */}
-              <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_hsl(var(--border)/0.8)]">
+              <TableHeader className="sticky-table-header">
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-10">
                     <input

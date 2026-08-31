@@ -104,7 +104,7 @@ export default function DashboardPage() {
   function TodayCard({ className }: { className?: string }) {
     return (
       <Card className={cn("glass-card shadow-layered", className)}>
-        <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+        <CardHeader className="shrink-0 flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             Today
@@ -115,7 +115,7 @@ export default function DashboardPage() {
             </span>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           <TodaySchedule items={attention?.today.items ?? []} loading={loading} />
         </CardContent>
       </Card>
@@ -235,18 +235,21 @@ export default function DashboardPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent className="scrollbar-thin pt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+            <CardContent className="scrollbar-thin pt-4 lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               <AttentionQueue items={attention?.items ?? []} loading={loading} />
             </CardContent>
           </Card>
         </div>
 
-        {/* The -m/p pair widens the scrollport by a hair so card borders and
-            shadows aren't shaved off at the clipping edge. */}
-        <div className="scrollbar-thin col-span-12 space-y-4 lg:col-span-5 xl:col-span-4 lg:-m-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:p-1">
-          <TodayCard className="hidden lg:block" />
+        {/* Briefing, pipeline and links keep their natural height; Today
+            absorbs the rest and its list scrolls, so the rail normally fills
+            the track exactly and no card gets sliced at the fold. The rail's
+            own overflow-y is the escape hatch for an unusually long briefing,
+            and the -m/p pair keeps card shadows out of its clipping edge. */}
+        <div className="scrollbar-thin col-span-12 space-y-4 lg:col-span-5 xl:col-span-4 lg:-m-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overscroll-contain lg:p-1">
+          <TodayCard className="hidden lg:flex lg:min-h-24 lg:flex-1 lg:flex-col" />
 
-          <Card className="glass-card border-primary/20 shadow-layered">
+          <Card className="glass-card border-primary/20 shadow-layered lg:shrink-0">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -270,13 +273,16 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card shadow-layered">
-            <CardHeader className="pb-3">
+          {/* Flexes like Today so a squeezed rail splits the pain between the
+              two lists, but max-h-fit stops surplus space padding the funnel
+              with emptiness — spare height belongs to the schedule. */}
+          <Card className="glass-card shadow-layered lg:flex lg:max-h-fit lg:min-h-28 lg:flex-1 lg:flex-col">
+            <CardHeader className="shrink-0 pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Pipeline
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               {loading || !metrics ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -289,7 +295,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-wrap gap-2 text-sm">
+          <div className="flex shrink-0 flex-wrap gap-2 text-sm">
             <Link
               href="/entities/deal"
               className="rounded-md border border-border/80 px-3 py-1.5 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground touch-manipulation"
