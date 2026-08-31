@@ -41,8 +41,8 @@ function Report({
   aside?: React.ReactNode;
 }) {
   return (
-    <Card className="glass-card shadow-layered">
-      <CardHeader className="flex-row items-start justify-between space-y-0 pb-4">
+    <Card className="glass-card shadow-layered lg:flex lg:min-h-0 lg:flex-col">
+      <CardHeader className="shrink-0 flex-row items-start justify-between space-y-0 pb-4">
         <div>
           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
@@ -51,7 +51,9 @@ function Report({
         </div>
         {aside}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+        {children}
+      </CardContent>
     </Card>
   );
 }
@@ -90,9 +92,9 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8">
-        <Skeleton className="mb-6 h-9 w-40" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
+        <Skeleton className="mb-4 h-8 w-40" />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-72 rounded-xl" />
           ))}
@@ -101,22 +103,23 @@ export default function ReportsPage() {
     );
   }
 
+  // Same fixed-cockpit deal as the dashboard: on desktop all six reports share
+  // the viewport as a 3x2 grid of panes, each scrolling its own bars when
+  // squeezed, so the whole picture is on screen at once.
   return (
-    <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-balance text-2xl font-bold tracking-tight md:text-3xl">Reports</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Money owed, what is landing, and where deals stall.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} className="gap-2">
+    <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:flex lg:h-full lg:flex-col">
+      <header className="mb-4 flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">Reports</h1>
+        <p className="text-sm text-muted-foreground">
+          Money owed, what is landing, and where deals stall.
+        </p>
+        <Button variant="outline" size="sm" onClick={load} className="ml-auto gap-2">
           <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
         </Button>
       </header>
 
       {error && (
-        <Card className="mb-6 border-destructive/30 shadow-layered">
+        <Card className="mb-4 shrink-0 border-destructive/30 shadow-layered">
           <CardContent className="flex items-start gap-3 py-5">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
             <div>
@@ -127,7 +130,7 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:min-h-[24rem] lg:flex-1 lg:grid-cols-3 lg:grid-rows-2">
         <Report
           title="Receivables aging"
           question="How much am I owed, and how late is it?"
