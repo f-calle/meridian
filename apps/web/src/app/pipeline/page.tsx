@@ -92,9 +92,9 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="flex h-full flex-col p-6 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Pipeline</h1>
+    <div className="flex h-full flex-col p-4 md:p-6">
+      <div className="mb-4 flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">Pipeline</h1>
         <p className="text-sm text-muted-foreground">Drag deals between stages</p>
       </div>
 
@@ -105,7 +105,9 @@ export default function PipelinePage() {
           ))}
         </div>
       ) : (
-        <div className="grid flex-1 grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-2 lg:grid-cols-5">
+        /* min-h-0 is what pins the board: without it a stage with a long list
+           grows the whole page instead of scrolling inside its column. */
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-2 lg:grid-cols-5">
           {STAGES.map((stage) => {
             const stageDeals = byStage.get(stage.key) ?? [];
             const totalValue = stageDeals.reduce((acc, d) => acc + (d.value ?? 0), 0);
@@ -136,7 +138,10 @@ export default function PipelinePage() {
                     {currency.format(totalValue)}
                   </span>
                 </div>
-                <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">
+                {/* lg:pb-6 reserves the scroll-fade-b depth, so the fade sits
+                    on padding at maximum scroll instead of dimming the last
+                    deal card. */}
+                <div className="scrollbar-thin lg:scroll-fade-b min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-2 lg:pb-6">
                   {stageDeals.map((deal) => (
                     <div
                       key={deal.id}

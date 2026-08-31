@@ -375,9 +375,9 @@ export default function MigrationPage() {
             </dl>
 
             {reportResults.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-border/80">
+              <div className="scrollbar-thin max-h-[50vh] overflow-auto overscroll-contain rounded-lg border border-border/80">
                 <table className="w-full text-left text-sm">
-                  <thead>
+                  <thead className="sticky-table-header">
                     <tr className="border-b border-border/80 bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-3 font-semibold">Entity</th>
                       <th className="px-4 py-3 font-semibold">Created</th>

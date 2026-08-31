@@ -214,9 +214,9 @@ export function CsvImportCard({
             </div>
 
             {mapping.length > 0 && (
-              <div className="mt-3 overflow-hidden rounded-lg border border-border/80">
+              <div className="scrollbar-thin mt-3 max-h-[45vh] overflow-auto overscroll-contain rounded-lg border border-border/80">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky-table-header">
                     <tr className="border-b border-border/80 bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-3 py-2 text-left font-semibold">CSV column</th>
                       <th className="w-8 px-1 py-2" />

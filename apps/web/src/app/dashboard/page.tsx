@@ -34,6 +34,16 @@ import { api, type AttentionSummary, type DashboardMetrics } from "@/lib/api";
  * steers by, and the biggest is the weighted forecast rather than the raw
  * pipeline, because "$1.7M in play" and "$717k realistically landing" are very
  * different claims and only one of them is a plan.
+ *
+ * On desktop the page is a fixed multi-pane cockpit: a one-line header and the
+ * stat strip stay put, and the panes below split the remaining height and
+ * scroll internally — queue + rail at lg, queue + schedule + rail at xl. A
+ * command center you have to scroll hides exactly the overflow it exists to
+ * surface — item thirteen below the fold is an item you will not act on. The
+ * chrome above the panes is kept deliberately shallow so the locked layout
+ * survives short laptop viewports instead of falling back to page scroll.
+ * Below lg the panels stack and the page scrolls normally; locking a phone
+ * screen into four competing scroll regions would be the opposite of the fix.
  */
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -62,7 +72,9 @@ export default function DashboardPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(false);
-    Promise.all([api.attention(12), api.metrics()])
+    // The queue pane scrolls, so it can hold a real backlog rather than a
+    // teaser — the API caps the limit at 50.
+    Promise.all([api.attention(30), api.metrics()])
       .then(([a, m]) => {
         setAttention(a);
         setMetrics(m);
@@ -89,15 +101,16 @@ export default function DashboardPage() {
     : 0;
 
   /**
-   * Rendered twice — once in the sidebar, once above the queue — with only one
-   * visible at a time. The stacked mobile layout puts the sidebar after the
-   * whole attention queue, which is the wrong end of a phone screen for the
-   * thing you are checking at nine in the morning.
+   * Rendered three times — its own pane at xl, in the rail at lg, above the
+   * queue on mobile — with only one visible at a time. The stacked mobile
+   * layout puts the rail after the whole attention queue, which is the wrong
+   * end of a phone screen for the thing you are checking at nine in the
+   * morning.
    */
   function TodayCard({ className }: { className?: string }) {
     return (
       <Card className={cn("glass-card shadow-layered", className)}>
-        <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+        <CardHeader className="shrink-0 flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             Today
@@ -108,7 +121,7 @@ export default function DashboardPage() {
             </span>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
           <TodaySchedule items={attention?.today.items ?? []} loading={loading} />
         </CardContent>
       </Card>
@@ -116,42 +129,47 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] p-6 md:p-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-balance text-2xl font-bold tracking-tight md:text-3xl">
-            {greeting()}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {new Date().toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-            {!loading && attention && (
-              <>
-                {" · "}
-                {totalNeedingAttention === 0
-                  ? "nothing overdue"
-                  : `${totalNeedingAttention} item${totalNeedingAttention === 1 ? "" : "s"} need you`}
-              </>
-            )}
-            {!loading && attention && attention.today.total > 0 && (
-              <>
-                {" · "}
-                {attention.today.total} on today
-              </>
-            )}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
+    <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:flex lg:h-full lg:flex-col">
+      {/* One line, not a masthead: every row the chrome spends here is a row
+          the panes lose, and on a 768-high laptop that difference is whether
+          the locked layout survives at all. */}
+      <header className="mb-4 flex shrink-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">{greeting()}</h1>
+        <p className="text-sm text-muted-foreground">
+          {new Date().toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          })}
+          {!loading && attention && (
+            <>
+              {" · "}
+              {totalNeedingAttention === 0
+                ? "nothing overdue"
+                : `${totalNeedingAttention} item${totalNeedingAttention === 1 ? "" : "s"} need you`}
+            </>
+          )}
+          {!loading && attention && attention.today.total > 0 && (
+            <>
+              {" · "}
+              {attention.today.total} on today
+            </>
+          )}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={load}
+          disabled={loading}
+          className="ml-auto gap-2"
+        >
           <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} aria-hidden="true" />
           Refresh
         </Button>
       </header>
 
       {error && (
-        <Card className="mb-6 border-destructive/30 shadow-layered">
+        <Card className="mb-4 shrink-0 border-destructive/30 shadow-layered">
           <CardContent className="flex items-start gap-3 py-5">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
             <div>
@@ -164,7 +182,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
         {loading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)
         ) : (
@@ -208,14 +226,17 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      {/* The min-h floor is the escape hatch for genuinely tiny windows:
+          rather than crushing the panes into letterboxes, the page falls back
+          to scrolling as a whole. */}
+      <div className="grid grid-cols-12 gap-4 lg:min-h-[14rem] lg:flex-1">
         <div className="col-span-12 lg:hidden">
           <TodayCard />
         </div>
 
-        <div className="col-span-12 lg:col-span-7 xl:col-span-8">
-          <Card className="glass-card shadow-layered">
-            <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/80 bg-muted/20 pb-4">
+        <div className="col-span-12 lg:col-span-7 xl:col-span-6 lg:min-h-0">
+          <Card className="glass-card shadow-layered lg:flex lg:h-full lg:flex-col">
+            <CardHeader className="shrink-0 flex-row items-center justify-between space-y-0 border-b border-border/80 bg-muted/20 pb-4">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Needs you
               </CardTitle>
@@ -225,23 +246,37 @@ export default function DashboardPage() {
                 </span>
               )}
             </CardHeader>
-            <CardContent className="pt-4">
+            <CardContent className="scrollbar-thin pt-4 lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               <AttentionQueue items={attention?.items ?? []} loading={loading} />
             </CardContent>
           </Card>
         </div>
 
-        <div className="col-span-12 space-y-4 lg:col-span-5 xl:col-span-4">
-          <TodayCard className="hidden lg:block" />
+        {/* At xl the schedule earns a pane of its own; at lg it lives in the
+            rail below. Third render of TodayCard — same only-one-visible deal
+            as the mobile copy. */}
+        <TodayCard className="hidden xl:col-span-3 xl:flex xl:min-h-0 xl:flex-col" />
 
-          <Card className="glass-card border-primary/20 shadow-layered">
-            <CardHeader className="pb-3">
+        {/* Briefing, pipeline and links keep their natural height; whatever
+            flexes (Today at lg, the pipeline always) absorbs the rest and
+            scrolls its own list, so the rail normally fills the track exactly
+            and no card gets sliced at the fold. The rail's own overflow-y is
+            the escape hatch for an unusually long briefing, and the -m/p pair
+            keeps card shadows out of its clipping edge. */}
+        <div className="scrollbar-thin col-span-12 space-y-3 lg:col-span-5 xl:col-span-3 lg:-m-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overscroll-contain lg:p-1">
+          <TodayCard className="hidden lg:flex lg:min-h-20 lg:flex-1 lg:flex-col xl:hidden" />
+
+          {/* Every rail card can give ground on a short screen — a fixed
+              briefing once squeezed the pipeline down to a bare header.
+              max-h-fit keeps them at natural size whenever there's room. */}
+          <Card className="glass-card border-primary/20 shadow-layered lg:flex lg:max-h-fit lg:min-h-16 lg:flex-1 lg:flex-col">
+            <CardHeader className="shrink-0 pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
                 Briefing
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               {briefingLoading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-full" />
@@ -258,13 +293,13 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card shadow-layered">
-            <CardHeader className="pb-3">
+          <Card className="glass-card shadow-layered lg:flex lg:max-h-fit lg:min-h-16 lg:flex-1 lg:flex-col">
+            <CardHeader className="shrink-0 pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Pipeline
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="scrollbar-thin lg:scroll-fade-b lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
               {loading || !metrics ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -277,7 +312,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-wrap gap-2 text-sm">
+          <div className="flex shrink-0 flex-wrap gap-2 text-sm">
             <Link
               href="/entities/deal"
               className="rounded-md border border-border/80 px-3 py-1.5 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground touch-manipulation"

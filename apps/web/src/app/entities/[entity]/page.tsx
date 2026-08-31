@@ -339,9 +339,13 @@ export default function EntityListPage() {
     [schema],
   );
 
+  // Desktop pins the page to the viewport, matching the dashboard: toolbar,
+  // selection bar and pagination stay put while the records themselves
+  // scroll — with the table header sticky inside its scroller. Below lg the
+  // page flow-scrolls as before.
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="p-6 md:p-8 lg:flex lg:h-full lg:flex-col">
+      <div className="mb-6 flex shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{schema?.pluralLabel ?? entity}</h1>
           <p className="text-sm text-muted-foreground tabular-nums">{loading ? "Loading…" : `${total.toLocaleString()} records`}</p>
@@ -411,7 +415,7 @@ export default function EntityListPage() {
       </div>
 
       {showForm && schema && (
-        <Card className="mb-6 border-border/80 shadow-elevated">
+        <Card className="mb-6 shrink-0 border-border/80 shadow-elevated">
           <CardHeader>
             <CardTitle className="text-lg">New {schema.label}</CardTitle>
           </CardHeader>
@@ -466,7 +470,7 @@ export default function EntityListPage() {
       ) : (
         <>
           {someSelected && (
-            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
               <span className="text-sm font-medium tabular-nums">{selectedIds.size} selected</span>
               <div className="hidden h-4 w-px bg-primary/30 sm:block" aria-hidden="true" />
               <Button
@@ -490,7 +494,9 @@ export default function EntityListPage() {
             </div>
           )}
           {view === "cards" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            /* The -m/p pair widens the scrollport by a hair so card borders and
+               shadows aren't shaved off at the clipping edge. */
+            <div className="scrollbar-thin grid grid-cols-1 gap-3 sm:grid-cols-2 lg:-m-1 lg:min-h-0 lg:grid-cols-3 lg:overflow-y-auto lg:overscroll-contain lg:p-1 xl:grid-cols-4">
               {records.map((record) => (
                 <RecordCard
                   key={String(record.id)}
@@ -501,9 +507,9 @@ export default function EntityListPage() {
               ))}
             </div>
           ) : (
-          <div className="overflow-hidden rounded-xl border border-border/80 shadow-layered">
-            <Table>
-              <TableHeader>
+          <div className="overflow-hidden rounded-xl border border-border/80 shadow-layered lg:flex lg:min-h-0 lg:flex-col">
+            <Table containerClassName="scrollbar-thin lg:min-h-0 lg:overscroll-contain">
+              <TableHeader className="sticky-table-header">
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-10">
                     <input
@@ -582,7 +588,7 @@ export default function EntityListPage() {
             </Table>
           </div>
           )}
-          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} className="mt-4" />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} className="mt-4 shrink-0" />
         </>
       )}
 
